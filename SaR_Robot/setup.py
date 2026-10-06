@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'sar_bringup'
+package_name = 'SaR_Robot'
 
 setup(
     name=package_name,
@@ -14,7 +14,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='rocotics',
-    maintainer_email='rocotics@todo.todo',
+    maintainer_email='184887@stud.hvl.no',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
