@@ -49,8 +49,8 @@ class ArucoNode(rclpy.node.Node):
         # Declare and read parameters
         self.declare_parameter("marker_size", 0.05)
         self.declare_parameter("aruco_dictionary_id", "DICT_5X5_250")
-        self.declare_parameter("image_topic", "/camera/image_raw")
-        self.declare_parameter("camera_info_topic", "/camera/camera_info")
+        self.declare_parameter("image_topic", "/camera/color/image_raw")
+        self.declare_parameter("camera_info_topic", "/camera/color/camera_info")
         self.declare_parameter("camera_frame", None)
 
         self.marker_size = self.get_parameter("marker_size").get_parameter_value().double_value
@@ -95,6 +95,31 @@ class ArucoNode(rclpy.node.Node):
         self.bridge = CvBridge()
         self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dictionary, self.aruco_parameters)
 
+    def my_estimatePoseSingleMarkers(self, corners, marker_size, mtx, distortion):
+        '''
+        This will estimate the rvec and tvec for each of the marker corners detected by:
+        corners, ids, rejectedImgPoints = detector.detectMarkers(image)
+        corners - is an array of detected corners for each detected marker in the image
+        marker_size - is the size of the detected markers
+        mtx - is the camera matrix
+        distortion - is the camera distortion matrix
+        RETURN list of rvecs, tvecs, and trash (so that it corresponds to the old estimatePoseSingleMarkers())
+        '''
+        marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, -marker_size / 2, 0],
+                                [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+        trash = []
+        rvecs = []
+        tvecs = []
+        
+        for c in corners:
+            nada, R, t = cv2.solvePnP(marker_points, c, mtx, distortion, False, cv2.SOLVEPNP_IPPE_SQUARE)
+            rvecs.append(R)
+            tvecs.append(t)
+            trash.append(nada)
+        return rvecs, tvecs, trash
+
     def info_callback(self, info_msg):
         self.info_msg = info_msg
         self.intrinsic_mat = np.reshape(np.array(self.info_msg.k), (3, 3))
@@ -108,81 +133,36 @@ class ArucoNode(rclpy.node.Node):
             self.get_logger().warn("No camera info has been received!")
             return
 
-        cv_image = self.bridge.imgmsg_to_cv2(img_msg,
-                                             desired_encoding='mono8')
-        markers = ArucoMarkers()
-        pose_array = PoseArray()
-        if self.camera_frame is None:
-            markers.header.frame_id = self.info_msg.header.frame_id
-            pose_array.header.frame_id = self.info_msg.header.frame_id
-        else:
-            markers.header.frame_id = self.camera_frame
-            pose_array.header.frame_id = self.camera_frame
-            
-            
-        markers.header.stamp = img_msg.header.stamp
-        pose_array.header.stamp = img_msg.header.stamp
+        cv_image = self.bridge.imgmsg_to_cv2(img_msg)
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
 
-        corners, marker_ids, rejected = self.aruco_detector.detectMarkers(cv_image)
+        h, w = cv_image.shape[:2]
+        newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.intrinsic_mat, self.distortion, (w, h), 1, (w, h))
+
+        dst = cv2.undistort(cv_image, self.intrinsic_mat, self.distortion, None, newcameramtx)
+        # crop the image
+        x, y, w, h = roi
+        dst = dst[y:y + h, x:x + w]
+
+
+        cv2.imshow('raw',cv_image)
+        # cv2.imshow('undistort', dst)
         
-        # self.get_logger().info("Test")
-        # self.get_logger().info(str(marker_ids[0]))
-        # self.get_logger().info(str(self.marker_size))
+        markerCorners, markerIds, rejectedCandidates = self.aruco_detector.detectMarkers(dst)
+        if not markerIds is None:
 
-        if marker_ids is not None:
+            rvecs, tvecs, trash = self.my_estimatePoseSingleMarkers(markerCorners, 5.3, newcameramtx, self.distortion)
+            #cv::drawFrameAxes(outputImage, cameraMatrix, distCoeffs, rvec, tvec, 0.1);
+            for idx in range(len(markerIds)):
 
-            # if cv2.__version__ > '4.0.0':
-            #     rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners,
-            #                                                           self.marker_size, self.intrinsic_mat,
-            #                                                           self.distortion)
-            # else:
-            #     rvecs, tvecs = cv2.aruco.estimatePoseSingleMarkers(corners,
-            #                                                        self.marker_size, self.intrinsic_mat,
-            #                                                        self.distortion)
-            
-            # self.get_logger().info(str(corners))
+                cv2.drawFrameAxes(dst,self.intrinsic_mat,self.distortion,rvecs[idx],tvecs[idx],5)
+                print('marker id:%d, pos_x = %f,pos_y = %f, pos_z = %f' % (markerIds[idx],tvecs[idx][0],tvecs[idx][1],tvecs[idx][2]))
 
-            marker_points = np.array([[-self.marker_size / 2, self.marker_size / 2, 0],
-                              [self.marker_size / 2, self.marker_size / 2, 0],
-                              [self.marker_size / 2, -self.marker_size / 2, 0],
-                              [-self.marker_size / 2, -self.marker_size / 2, 0]], dtype=np.float32)
-            trash = []
-            rvecs = []
-            tvecs = []
-            for c in corners:
-                # self.get_logger().info("new corner")
-                # self.get_logger().info(str(c))
-                nada, R, t = cv2.solvePnP(marker_points, c, self.intrinsic_mat, self.distortion, False, cv2.SOLVEPNP_IPPE_SQUARE)
-                rvecs.append(R)
-                tvecs.append(t)
-                trash.append(nada)
-
-            # self.get_logger().info(str(tvecs[0][1][0]))
-            for i, marker_id in enumerate(marker_ids):
-                # self.get_logger().info("i: "+str(i))
-                # self.get_logger().info("id: "+str(marker_id))
-                pose = Pose()
-                pose.position.x = float(tvecs[i][0])
-                pose.position.y = float(tvecs[i][1])
-                pose.position.z = float(tvecs[i][2])
-                # self.get_logger().info("Position: "+str(pose.position))
-                # self.get_logger().info("rvecs: "+str(rvecs[i]))
-                rot_matrix = np.eye(4)
-                cv2.Rodrigues(np.array(rvecs[i]), rot_matrix[0:3, 0:3])
-                # self.get_logger().info("Rot Matrix: "+str(rot_matrix))
-                quat = transformations.quaternion_from_matrix(rot_matrix)
-
-                pose.orientation.x = quat[0]
-                pose.orientation.y = quat[1]
-                pose.orientation.z = quat[2]
-                pose.orientation.w = quat[3]
-
-                pose_array.poses.append(pose)
-                markers.poses.append(pose)
-                markers.marker_ids.append(marker_id[0])
-
-            self.poses_pub.publish(pose_array)
-            self.markers_pub.publish(markers)
+        cv2.aruco.drawDetectedMarkers(dst, markerCorners, markerIds)
+        # print(markerIds)
+        cv2.imshow('detect', dst)
+        cv2.waitKey(1)
+        
 
 
 def main():
