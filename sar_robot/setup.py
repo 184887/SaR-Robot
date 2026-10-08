@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'SaR_Robot'
+package_name = 'sar_robot'
 
 setup(
     name=package_name,
