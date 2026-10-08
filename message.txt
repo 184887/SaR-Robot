@@ -1,0 +1,77 @@
+Her er en konkret fordeling av uke 1. Målet for uka: begge robotene kjører selv rundt i labyrinten, rapporterer markører og får poeng, og alt startes med én kommando.
+
+Dag 1: oppstartsmøte (alle sammen, 1–2 timer)
+Alle får miljøet til å virke på sin egen maskin:
+klon repoet, kjør colcon build,
+start rescue_robots_w1.launch.py og ros2 run scoring scoring,
+kjør til en markør med teleop.
+
+Ingen begynner å kode før dette virker hos alle fire.
+
+Bli enige om meldingstypene (D skriver ned):
+MarkerFound: robot_id, marker_id, position, accepted
+RobotState: robot_id, x, y, theta i map-rammen, og state
+KnownMarkers: liste med godkjente ID-er
+Avtal git-rutiner: én branch per oppgave, pull request til main, og noen andre går gjennom koden før den tas inn.
+A: Bevegelse
+
+Mål: begge robotene kjører selv med veggfølging, uten å kræsje.
+
+ Gjør wallfollower_controller.py fra Bug2-labben (~/Github/bug2_navigation) om til en vanlig Python-klasse WallFollower i sar_robot/sar_robot/wall_follower.py. Den skal ikke ha ROS-kode, bare ta inn LaserScan.ranges og returnere (v, ω). Legg til parameteren follow_left.
+ Lag noden robot_controller.py. Den abonnerer på scan og odom, publiserer cmd_vel, har en timer på 10 Hz og bruker WallFollower.
+ Bytt /scan og /odom til scan og odom, uten /. Labkoden bruker absolutte navn, og da virker den ikke i namespace.
+ Parameter: tb3_0 følger høyre vegg og tb3_1 venstre.
+ Publiser RobotState på /robot_states når D har laget meldingstypen. Posisjonen må være i map, ikke odom. Hent den med tf2, lookup_transform('map', 'tb3_X/base_footprint'), på samme måte som marker_pose.py gjør. Robotenes odom starter i null på hvert sitt sted.
+ Kjør i 10 minutter på w1 og w2, og skriv ned hvor robotene setter seg fast.
+
+Ferdig når: begge robotene kjører i 10 minutter i w1 uten å kræsje eller stå fast.
+
+B: Kart og planlegging
+
+Mål: kartet leses inn, det er lagt buffer rundt veggene, og det vises i RViz. A* er en bonus i denne uka.
+
+ Lag map_grid.py med klassen MapGrid. Den abonnerer på /map med QoS TRANSIENT_LOCAL (kodeeksempel på kurssidens occupancy-grid-side) og gjør dataene om til et 2D numpy-array.
+ Lag funksjonene world_to_grid(x, y) og grid_to_world(i, j). Hjelpefunksjonene på kurssiden bytter om x og y, så test med et kjent punkt.
+ Legg buffer rundt veggene med robotens radius pluss margin, cirka 0,25 m. scipy.ndimage.binary_dilation eller en egen løkke holder.
+ Publiser det nye kartet som /inflated_map (OccupancyGrid) og se det i RViz.
+ Bonus: lag A* eller distance transform med plan(start, mål) → [(x, y), ...]. Test med en node som tar /clicked_point («Publish Point» i RViz) og publiserer en nav_msgs/Path på /planned_path.
+
+Ferdig når: kartet med buffer vises i RViz over det vanlige kartet. Bonus: du klikker et punkt i RViz og ser en rute rundt veggene.
+
+C: Markører og koordinering
+
+Mål: markører gir poeng, og ingen markør rapporteres to ganger.
+
+ Ta inn marker_reporter.py fra forslaget mitt og test den med teleop på begge robotene.
+ Skriv ned hvor ofte rapporter blir avvist, og når. marker_pose sender den gamle posisjonen til den siste markøren den så. Prøv å bare rapportere når aruco_markers nettopp har kommet.
+ Lag coordinator.py, en global node uten namespace:
+den abonnerer på /markers_found og /robot_states og logger dem,
+den publiserer /known_markers.
+ marker_reporter publiserer MarkerFound og hopper over ID-er som allerede står i /known_markers.
+
+Ferdig når: du kjører tb3_0 til en markør med teleop og den blir godkjent. Når du så kjører tb3_1 til samme markør, prøver den ikke å rapportere den. Koordinatoren logger begge hendelsene.
+
+D: Integrasjon og test
+
+Mål: én kommando starter alt, og dere har poengtall fra alle fem verdenene.
+
+ Først (dag 1–2), fordi A og C trenger det: lag MarkerFound.msg, RobotState.msg og KnownMarkers.msg i sar_robot_interface, slett test.*, og legg rosidl_generate_interfaces inn i CMakeLists.txt og package.xml. Sjekk med ros2 interface show sar_robot_interface/msg/RobotState.
+ Lag sar.launch.py med argumentet world:=1..5. Den inkluderer rescue_robots_w{N}.launch.py og starter robot_controller og marker_reporter i hvert namespace, samt coordinator.
+ Skriv README med oppsett og kjøring (krav for innlevering).
+ Oppdater CONTRACT.md til versjon 0.2 med det dere ble enige om på oppstartsmøtet.
+ Lag testlogg.md med disse kolonnene: dato, commit, verden, poeng, markører funnet, storbrann ja/nei og kommentar.
+ Mot slutten av uka: kjør hele systemet på alle fem verdenene og fyll inn testloggen. Det er utgangspunktet dere sammenligner med.
+ Slå på branch protection for main på GitHub.
+
+Ferdig når: ros2 launch sar_robot sar.launch.py world:=3 starter alt, og testloggen har tall fra w1–w5.
+
+Avhengigheter og møtepunkter
+Når	Hva
+Dag 1	Oppstartsmøte, alle har miljøet oppe
+Dag 2	D har pushet meldingstypene, så A og C kan bruke dem
+Midt i uka	Alle tar inn det de har i main og kjører systemet sammen. Her finner dere integrasjonsfeil tidlig
+Slutten av uka	Demo for hverandre. Hver person forklarer koden sin for de andre, som trening til muntlig. D viser testloggen
+
+B jobber nesten uavhengig av de andre denne uka. Planleggeren kobles inn hos A i uke 2.
+
+Vil du at jeg legger denne planen inn i repoet som UKEPLAN.md, eller i CONTRACT.md? Jeg kan også formulere oppgavene som GitHub-issues, så kan du opprette dem selv.
