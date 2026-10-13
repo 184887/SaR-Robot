@@ -18,8 +18,10 @@ setup(
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
-    entry_points={
+    entry_points={ 
         'console_scripts': [
+            'marker_reporter = sar_robot.marker_reporter:main',
+            'coordinator = sar_robot.coordinator:main',
         ],
     },
 )
