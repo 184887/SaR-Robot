@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'marker_reporter = sar_robot.marker_reporter:main',
             'coordinator = sar_robot.coordinator:main',
+            'wall_follower = sar_robot.wall_follower:main',
         ],
     },
 )
