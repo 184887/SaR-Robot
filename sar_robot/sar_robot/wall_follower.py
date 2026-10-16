@@ -35,6 +35,9 @@ class WallFollower(Node):
 
         side = 'venstre' if self.follow_left else 'høyre'
         self.get_logger().info(f'wall_follower startet, følger {side} vegg')
+        self.declare_parameter('sving_mot_timeout', 7.0)
+        self.sving_mot_timeout = self.get_parameter('sving_mot_timeout').value
+        self.sving_mot_start = None
 
     def clbk_switch(self, request, response):
         self.active = request.data
@@ -66,13 +69,19 @@ class WallFollower(Node):
 
     def update_state(self):
         forrige = self.state
+        naa = self.get_clock().now()
 
         if self.regions['front'] < 0.5:
             self.state = State.SVING_BORT
         elif self.regions['side'] < 0.7:
             self.state = State.FOLLOW_WALL
-        elif self.state in (State.SVING_MOT, State.FOLLOW_WALL):
+        elif self.state == State.FOLLOW_WALL:
             self.state = State.SVING_MOT
+            self.sving_mot_start = naa
+        elif self.state == State.SVING_MOT:
+            tid = (naa - self.sving_mot_start).nanoseconds / 1e9
+            if tid > self.sving_mot_timeout:
+                self.state = State.FINN_VEGG
         else:
             self.state = State.FINN_VEGG
 
