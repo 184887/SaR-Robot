@@ -4,6 +4,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def launch_setup(context):
@@ -20,11 +21,26 @@ def launch_setup(context):
     verden = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(launch_fil)
     )
+    # en global node uten namespace som lytter på /markers_found og /robot_states og publiserer /known_markers
+    coordinator = Node(
+        package='sar_robot',
+        executable='coordinator',
+        output='screen'
+    )
+    reporter_0 = Node(
+        package='sar_robot',
+        executable='marker_reporter',
+        namespace='tb3_0',
+        output='screen',
+    )
+    reporter_1 = Node(
+        package='sar_robot',
+        executable='marker_reporter',
+        namespace='tb3_1',
+        output='screen',
+    )
 
-    return [verden]
-
-    
-
+    return [verden, coordinator, reporter_0, reporter_1]
 
 def generate_launch_description():
     return LaunchDescription([
