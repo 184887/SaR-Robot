@@ -10,7 +10,7 @@
   <depend>rclpy</depend>
   <depend>sar_robot_interface</depend>
   <depend>nav_msgs</depend>
-  <exec_depend>python3-numphy</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
 
   
