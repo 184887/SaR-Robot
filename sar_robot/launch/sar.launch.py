@@ -8,11 +8,9 @@ from launch_ros.actions import Node
 
 
 def launch_setup(context):
-    # Her er world en vanlig streng, f.eks. '3'
     world = LaunchConfiguration('world').perform(context)
 
-    #   - mappa: get_package_share_directory('multi_robot_challenge_23') + 'launch'
-    #   - bruk os.path.join, og f-streng for filnavnet
+
     pakke_mappe = get_package_share_directory('multi_robot_challenge_23')
     filnavn = f'rescue_robots_w{world}.launch.py'
     launch_fil = os.path.join(pakke_mappe, 'launch', filnavn)
@@ -48,7 +46,6 @@ def launch_setup(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        # DeclareLaunchArgument for 'world', default_value='1'
         DeclareLaunchArgument('world', default_value='1'),
         OpaqueFunction(function=launch_setup),
        
