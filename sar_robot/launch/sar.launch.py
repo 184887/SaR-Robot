@@ -27,6 +27,8 @@ def launch_setup(context):
         executable='coordinator',
         output='screen'
     )
+
+    #marker_reporter, en kopi per robot. Namespace = hvilken robott den hører til 
     reporter_0 = Node(
         package='sar_robot',
         executable='marker_reporter',
@@ -39,6 +41,8 @@ def launch_setup(context):
         namespace='tb3_1',
         output='screen',
     )
+
+    #TODO legge til navigasjon for robotenee når dette er på plass. 
 
     return [verden, coordinator, reporter_0, reporter_1]
 
