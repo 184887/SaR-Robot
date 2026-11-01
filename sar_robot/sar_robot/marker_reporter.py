@@ -14,8 +14,10 @@ import tf2_geometry_msgs
 
 
 class MarkerReporter(Node):
+    """Én per robot: rapporterer nye ArUco-markører til scoring."""
 
     def __init__(self):
+        """Setter opp TF, abonnementer, publisher og klienten til scoring."""
         super().__init__('marker_reporter')
         self.robot_id = self.get_namespace().strip('/')   # 'tb3_0' eller 'tb3_1'
         self.camera_frame = self.robot_id + '/camera_rgb_optical_frame'
@@ -38,9 +40,11 @@ class MarkerReporter(Node):
         self.get_logger().info(f'marker_reporter startet for {self.robot_id}')
 
     def clbk_known(self, msg):
+        """Oppdaterer listen over markører som allerede er godkjent."""
         self.known = set(msg.marker_ids)
 
     def clbk_markers(self, msg):
+        """Kalles når kameraet ser markører: filtrerer, regner om til kartet og rapporterer."""
         # Kalles hver gang kameraet ser markører. Posisjonen regnes om HER,
         # ikke i en timer, så vi sender aldri en gammel posisjon.
         for marker_id, pose in zip(msg.marker_ids, msg.poses):
@@ -64,6 +68,7 @@ class MarkerReporter(Node):
             self.report(marker_id, p_map)
 
     def report(self, marker_id, position):
+        """Sender markøren og posisjonen til scoring-tjenesten."""
         if not self.client.service_is_ready():
             self.get_logger().warn('Scoring svarer ikke. Kjører scoring?')
             return
@@ -78,6 +83,7 @@ class MarkerReporter(Node):
         future.add_done_callback(lambda f: self.on_response(f, marker_id, position))
 
     def on_response(self, future, marker_id, position):
+        """Tar imot svaret fra scoring, teller opp og publiserer MarkerFound."""
         self.pending.discard(marker_id)
         accepted = future.result().accepted
 
@@ -99,6 +105,7 @@ class MarkerReporter(Node):
 
 
 def main(args=None):
+    """Starter marker_reporter-noden."""
     rclpy.init(args=args)
     node = MarkerReporter()
     rclpy.spin(node)

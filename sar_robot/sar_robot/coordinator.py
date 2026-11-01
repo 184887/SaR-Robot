@@ -5,8 +5,10 @@ from sar_robot_interface.msg import KnownMarkers, MarkerFound, RobotState
 
 
 class Coordinator(Node):
+    """Global node: holder oversikt over godkjente markører og robotenes status."""
 
     def __init__(self):
+        """Setter opp abonnementer, publisher og en timer som sender /known_markers hvert sekund."""
         super().__init__('coordinator')
         self.known = set()   # ID-er som scoring har godkjent
 
@@ -18,22 +20,26 @@ class Coordinator(Node):
         self.get_logger().info('coordinator startet')
 
     def clbk_marker_found(self, msg):
+        """Logger en rapport fra en robot og lagrer markøren hvis scoring godkjente den."""
         self.get_logger().info(
             f'{msg.robot_id} rapporterte markør {msg.marker_id}, godkjent: {msg.accepted}')
         if msg.accepted:
             self.known.add(msg.marker_id)
 
     def clbk_robot_state(self, msg):
+        """Logger hvor roboten er og hva den gjør."""
         self.get_logger().info(
             f'{msg.robot_id}: {msg.state} ({msg.x:.2f}, {msg.y:.2f})')
 
     def publish_known(self):
+        """Sender listen over godkjente markører til alle robotene."""
         msg = KnownMarkers()
         msg.marker_ids = sorted(self.known)
         self.known_pub.publish(msg)
 
 
 def main(args=None):
+    """Starter coordinator-noden."""
     rclpy.init(args=args)
     node = Coordinator()
     rclpy.spin(node)
