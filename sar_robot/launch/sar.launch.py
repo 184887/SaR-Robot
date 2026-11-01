@@ -32,12 +32,14 @@ def launch_setup(context):
         executable='marker_reporter',
         namespace='tb3_0',
         output='screen',
+        remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
     )
     reporter_1 = Node(
         package='sar_robot',
         executable='marker_reporter',
         namespace='tb3_1',
         output='screen',
+        remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
     )
 
     #TODO legge til navigasjon for robotenee når dette er på plass. 
