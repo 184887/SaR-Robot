@@ -27,6 +27,7 @@ setup(
             'coordinator = sar_robot.coordinator:main',
             'wall_follower = sar_robot.wall_follower:main',
             'map_node = sar_robot.map_node:main',
+            'planner_test_node = sar_robot.planner_test_node:main',
         ],
     },
 )
