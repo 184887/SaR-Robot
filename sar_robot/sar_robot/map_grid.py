@@ -66,3 +66,14 @@ class MapGrid:
         msg.data = array.array('b', self.grid.tobytes())
 
         return msg
+
+    def downsample(self, factor):
+        """Lager grovere kart. Gjør om factor * factor ruter til 1 større rute. Opptatt hvis noen av dem er opptatt"""
+        height, width = self.grid.shape
+        h, w = height // factor, width // factor
+        # Deler kartet opp i blokker på factor * factor
+        blocks = self.grid[:h * factor, :w * factor].reshape(h, factor, w, factor)
+        blocked = (blocks != 0).any(axis=(1, 3))
+        grid = np.where(blocked, 100, 0).astype(np.int8)
+
+        return MapGrid(grid, self.resolution * factor, self.origin_x, self.origin_y)
