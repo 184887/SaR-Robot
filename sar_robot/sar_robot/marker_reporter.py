@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
+import time
 
 from geometry_msgs.msg import PointStamped
 from ros2_aruco_interfaces.msg import ArucoMarkers
@@ -23,6 +24,7 @@ class MarkerReporter(Node):
         self.pending = set()   # venter på svar fra scoring
         self.accepted = 0
         self.rejected = 0
+        self.last_try = {}
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -45,11 +47,16 @@ class MarkerReporter(Node):
             marker_id = int(marker_id)
             if marker_id in self.known or marker_id in self.pending:
                 continue
+            if time.time() - self.last_try.get(marker_id, 0) < 5.0:   # NY
+                continue 
+            if pose.position.z > 3.0:
+                continue
+                                                              # NY
 
             try:
                 tf = self.tf_buffer.lookup_transform('map', self.camera_frame, Time())
             except TransformException:
-                return
+                continue
 
             p = PointStamped()
             p.point = pose.position
@@ -65,6 +72,7 @@ class MarkerReporter(Node):
         request.marker_id = marker_id
         request.marker_position = position
 
+        self.last_try[marker_id] = time.time()
         self.pending.add(marker_id)
         future = self.client.call_async(request)
         future.add_done_callback(lambda f: self.on_response(f, marker_id, position))
