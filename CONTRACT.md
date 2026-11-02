@@ -1,201 +1,87 @@
-# Grensesnittkontrakt – SaR-Robot
+# Kontrakt for SaR-Robot
 
-| | |
-|---|---|
-| **Versjon** | 0.1 (utkast) |
-| **Dato** | 2026-10-08 |
-| **Eier** | TODO: navn |
-| **Status** | Til diskusjon i gruppa |
+Versjon 0.2, 2 november 2026.
 
-Dette dokumentet beskriver hvordan nodene i systemet kommuniserer: topics, services,
-actions, meldingstyper og konvensjoner. Alle som lager eller endrer en node skal
-følge kontrakten. Selve definisjonene av egne typer ligger i `sar_robot_interface/`,
-mens koden ligger i `sar_robot/`.
+Her står hvordan nodene våre snakker sammen. Koden ligger i sar_robot og meldingstypene i sar_robot_interface.
 
-> Punkter merket **TODO** er antakelser eller plassholdere som må avklares.
 
----
+## 1. Noder
 
-## 1. Noder og ansvar
+- coordinator (global): holder oversikt over hvilke markører som er funnet
+- marker_reporter (en per robot): rapporterer markører roboten ser til scoring
+- robot_controller (en per robot): kjører roboten og sender posisjonen. Følger veggen foreløpig
+- map_node (global): gjør veggene i kartet tykkere
+- coverage_node (global): lager en rute med punkter til hver robot
+- planner_test_node (global): bare for å teste A* i RViz, er ikke med i launch-fila
 
-| Node | Pakke | Ansvar |
-|---|---|---|
-| `mission_manager` | `sar_robot` | Styrer oppdraget og tilstandsmaskinen, bestemmer hva roboten gjør |
-| `navigation` | `sar_robot` | Kjører roboten til mål og unngår hindringer |
-| `victim_detector` | `sar_robot` | Finner mulige personer i kamerabildet og publiserer funn |
-| `base_driver` | TODO | Snakker med motorene, tar imot `/cmd_vel` og publiserer odometri |
-| `operator_ui` | TODO | Lar operatøren starte, stoppe og følge med på oppdraget |
+Disse filene er ikke noder, bare klasser som nodene bruker: wall_follower.py, path_follower.py (brukes ikke ennå), map_grid.py, planner.py (A*) og coverage.py.
 
-TODO: Avklar om vi bruker Nav2 til navigasjon eller lager vår egen.
+Fra kurset bruker vi scoring (gir poeng), aruco_node (finner markører) og map_server (sender ut kartet).
 
----
+Vi bruker ikke Nav2, navigasjonen lager vi selv.
+
 
 ## 2. Topics
 
-| Topic | Type | Publiserer | Abonnerer | Frekvens | QoS |
-|---|---|---|---|---|---|
-| `/scan` | `sensor_msgs/msg/LaserScan` | lidar-driver | `navigation` | 10 Hz | sensor data (best effort) |
-| `/camera/image_raw` | `sensor_msgs/msg/Image` | kamera-driver | `victim_detector` | 15 Hz | sensor data (best effort) |
-| `/odom` | `nav_msgs/msg/Odometry` | `base_driver` | `navigation`, `mission_manager` | 20 Hz | reliable |
-| `/cmd_vel` | `geometry_msgs/msg/Twist` | `navigation` | `base_driver` | 10 Hz | reliable |
-| `/victim_detected` | `sar_robot_interface/msg/Victim` | `victim_detector` | `mission_manager`, `operator_ui` | ved funn | reliable |
-| `/robot_status` | `sar_robot_interface/msg/RobotStatus` | `mission_manager` | `operator_ui` | 1 Hz | reliable, transient local |
-| `/emergency_stop` | `std_msgs/msg/Bool` | `operator_ui` | `base_driver`, `mission_manager` | ved hendelse | reliable, transient local |
+Felles for begge robotene:
+- /markers_found (MarkerFound): marker_reporter sender, coordinator leser
+- /known_markers (KnownMarkers): coordinator sender hvert sekund, marker_reporter leser
+- /robot_states (RobotState): robot_controller sender, coordinator leser
+- /map (OccupancyGrid): map_server sender, map_node leser
+- /inflated_map (OccupancyGrid): map_node sender, coverage_node leser
 
-Regler:
-- Bare `navigation` publiserer på `/cmd_vel`. Andre noder som vil flytte roboten må gå via `navigation`.
-- `base_driver` stopper motorene hvis den ikke har fått `/cmd_vel` på 0,5 s (watchdog).
+For hver robot (tb3_0 og tb3_1):
+- coverage_path (Path): coverage_node sender. Skal leses av robot_controller, men er ikke koblet ennå
+- aruco_markers (ArucoMarkers): aruco_node sender, marker_reporter leser
+- scan (LaserScan): roboten sender, robot_controller leser
+- cmd_vel (Twist): robot_controller sender, roboten leser
 
----
+Kartet og rutene sendes bare en gang. Derfor må de leses med samme QoS som de sendes med (MAP_QOS i map_node.py).
+
 
 ## 3. Services
 
-### `/start_search`
-- **Type:** `sar_robot_interface/srv/StartSearch`
-- **Server:** `mission_manager`
-- **Klient:** `operator_ui`
-- **Request:** `area_id` (string) – ID for området som skal gjennomsøkes
-- **Response:** `success` (bool), `message` (string)
-- **Feil:** Returnerer `success=false` hvis roboten ikke er i `IDLE`, eller hvis `area_id` er ukjent.
+- /set_marker_position (SetMarkerPosition fra scoring_interfaces): scoring er server og marker_reporter er klient. Vi sender marker_id og posisjonen, og får tilbake om den ble godkjent.
+- wallfollower_switch (SetBool), en per robot: robot_controller er server. True starter veggfølgingen og false stopper roboten. Ingen bruker den ennå.
 
-### `/stop_mission`
-- **Type:** `std_srvs/srv/Trigger`
-- **Server:** `mission_manager`
-- **Klient:** `operator_ui`
-- **Oppførsel:** Avbryter pågående oppdrag, stopper roboten og går til `IDLE`.
-- **Merk:** Dette er en vanlig stopp. Nødstopp går via `/emergency_stop`, se seksjon 7.
 
----
+## 4. Meldingstyper
 
-## 4. Actions
+MarkerFound:
+- robot_id (string)
+- marker_id (int8)
+- position (Point)
+- accepted (bool)
 
-### `/navigate_to_point`
-- **Type:** `sar_robot_interface/action/NavigateToPoint`
-- **Server:** `navigation`
-- **Klient:** `mission_manager`
-- **Goal:** `target` (`geometry_msgs/PoseStamped`), mål i `map`-frame
-- **Feedback:** `distance_remaining` (float32, meter)
-- **Result:** `success` (bool), `message` (string)
-- **Avbrytelse:** Klienten kan avbryte (cancel). Da stopper roboten.
-- **Timeout:** TODO: f.eks. 120 s, deretter `success=false`
+RobotState:
+- robot_id (string)
+- x, y og theta (float64)
+- state (string), hva veggfølgeren holder på med: FINN_VEGG, SVING_BORT, FOLLOW_WALL eller SVING_MOT
 
-TODO: Bytt til `nav2_msgs/action/NavigateToPose` hvis vi bruker Nav2.
+KnownMarkers:
+- marker_ids (liste med int8)
 
----
 
-## 5. Egne meldingstyper (`sar_robot_interface`)
+## 5. Regler vi følger
 
-### `msg/Victim.msg`
-```
-std_msgs/Header header        # stamp = tidspunkt for bildet, frame_id = "map"
-geometry_msgs/Point position  # estimert posisjon, meter
-float32 confidence            # 0.0–1.0
-string id                     # unik ID, slik at samme person ikke rapporteres flere ganger
-```
+- Alle posisjoner er i map og i meter.
+- robot_id er det samme som namespace, altså tb3_0 eller tb3_1.
+- Topics for en robot skrives uten skråstrek foran, så namespace legges på av seg selv. Felles topics skrives med skråstrek foran.
+- Noder i namespace som bruker TF må ha remapping av tf og tf_static i launch-fila.
 
-### `msg/RobotStatus.msg`
-```
-std_msgs/Header header
-uint8 IDLE=0
-uint8 SEARCHING=1
-uint8 VICTIM_FOUND=2
-uint8 RETURNING=3
-uint8 ERROR=4
-uint8 state
-float32 battery_percent       # 0.0–100.0
-uint16 victims_found
-string message                # fritekst for operatøren, kan være tom
-```
 
-### `srv/StartSearch.srv`
-```
-string area_id
----
-bool success
-string message
-```
+## 6. Parametre
 
-### `action/NavigateToPoint.action`
-```
-geometry_msgs/PoseStamped target
----
-bool success
-string message
----
-float32 distance_remaining
-```
+- follow_left i robot_controller: hvilken vegg roboten følger. tb3_0 følger høyre og tb3_1 venstre.
+- sving_mot_timeout i robot_controller: sekunder før den gir opp å svinge mot veggen. Standard 7.
+- inflation_radius i map_node: hvor mye tykkere veggene blir. Standard 0.25 m.
+- spacing i coverage_node: avstand mellom punktene i ruta. Standard 1.5 m.
+- cell_factor i coverage_node: hvor mye kartet skaleres ned før A*. Standard 5.
 
----
 
-## 6. Konvensjoner
+## 7. Endringer
 
-- **Enheter:** SI (meter, sekunder, radianer, m/s) i henhold til REP 103.
-- **Koordinatsystem:** x fremover, y til venstre, z opp.
-- **TF-frames (REP 105):** `map` → `odom` → `base_link` → sensorframes (`laser_link`, `camera_link`).
-- **Tidsstempel:** Alle målinger og funn har `header.stamp` satt til tidspunktet målingen ble gjort, ikke tidspunktet meldingen ble sendt.
-- **Navngiving:** snake_case for noder, topics, services og parametre, og PascalCase for meldingstyper.
-- **Python-kode:** Følger flake8 og pep257 (testene i `sar_robot/test/` må passere).
+Hvis du endrer et topic, en service eller en meldingstype, oppdater denne fila i samme pull request og skriv det her.
 
----
-
-## 7. Tilstander
-
-```
-          /start_search
-  IDLE ─────────────────► SEARCHING
-   ▲                       │      ▲
-   │                Victim │      │ funn registrert
-   │                       ▼      │
-   │                    VICTIM_FOUND
-   │                       │
-   │   ferdig / /stop_mission
-   └──── RETURNING ◄───────┘
-
-  Alle tilstander ──(/emergency_stop eller kritisk feil)──► ERROR
-  ERROR ──(manuell reset)──► IDLE
-```
-
-| Fra | Til | Utløses av |
-|---|---|---|
-| `IDLE` | `SEARCHING` | `/start_search` med gyldig område |
-| `SEARCHING` | `VICTIM_FOUND` | ny `Victim` med `confidence` ≥ TODO (f.eks. 0.7) |
-| `VICTIM_FOUND` | `SEARCHING` | funnet er registrert og rapportert til operatøren |
-| `SEARCHING` | `RETURNING` | området er ferdig søkt, `/stop_mission`, eller batteri < TODO % |
-| `RETURNING` | `IDLE` | roboten er tilbake ved start |
-| alle | `ERROR` | `/emergency_stop = true` eller kritisk feil |
-
----
-
-## 8. Sikkerhet og feilhåndtering
-
-- **Nødstopp:** Når `/emergency_stop` er `true`, skal `base_driver` stoppe motorene umiddelbart, uansett hva andre noder sender. Roboten står stille til en manuell reset.
-- **Watchdog:** `base_driver` stopper hvis `/cmd_vel` uteblir i mer enn 0,5 s.
-- **Node faller ut:** Hvis `mission_manager` ikke mottar data fra en påkrevd node (`/odom`, `/scan`) på TODO s, går den til `ERROR`.
-- **Lavt batteri:** Under TODO % går roboten til `RETURNING`.
-
----
-
-## 9. Parametre
-
-| Parameter | Node | Type | Standard | Beskrivelse |
-|---|---|---|---|---|
-| `max_linear_speed` | `navigation` | double | 0.3 | m/s |
-| `max_angular_speed` | `navigation` | double | 1.0 | rad/s |
-| `detection_threshold` | `victim_detector` | double | 0.7 | min. `confidence` for å publisere funn |
-| `cmd_vel_timeout` | `base_driver` | double | 0.5 | s før watchdog stopper roboten |
-| `low_battery_percent` | `mission_manager` | double | TODO | grense for å returnere |
-
----
-
-## 10. Endringsregler
-
-1. Endringer i kontrakten foreslås og avtales i gruppa **før** koden endres.
-2. Når et topic, service, en action eller en meldingstype endres, økes versjonsnummeret øverst, og endringen føres i loggen under.
-3. Endringer som brekker eksisterende kode (nye navn, fjernede felt) gir nytt hovednummer (0.x → 1.0).
-4. Endringer i `sar_robot_interface` og `CONTRACT.md` committes sammen.
-
-### Endringslogg
-
-| Versjon | Dato | Endring | Av |
-|---|---|---|---|
-| 0.1 | 2026-10-08 | Første utkast | TODO |
+- 0.1 (8 oktober): første utkast
+- 0.2 (2 november): skrevet om etter nodene vi faktisk har
