@@ -41,7 +41,7 @@ class MarkerReporter(Node):
 
     def clbk_known(self, msg):
         """Oppdaterer listen over markører som allerede er godkjent."""
-        self.known = set(msg.marker_ids)
+        self.known |= set(msg.marker_ids)
 
     def clbk_markers(self, msg):
         """Kalles når kameraet ser markører: filtrerer, regner om til kartet og rapporterer."""
@@ -58,7 +58,8 @@ class MarkerReporter(Node):
                                                               # NY
 
             try:
-                tf = self.tf_buffer.lookup_transform('map', self.camera_frame, Time())
+                                tf = self.tf_buffer.lookup_transform(
+                    'map', self.camera_frame, Time.from_msg(msg.header.stamp))
             except TransformException:
                 continue
 
@@ -85,6 +86,9 @@ class MarkerReporter(Node):
     def on_response(self, future, marker_id, position):
         """Tar imot svaret fra scoring, teller opp og publiserer MarkerFound."""
         self.pending.discard(marker_id)
+        if future.result() is None:
+            self.get_logger().warn(f'Scoring svarte ikke for markør {marker_id}')
+            return
         accepted = future.result().accepted
 
         if accepted:
