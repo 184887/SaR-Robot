@@ -60,9 +60,22 @@ def launch_setup(context):
         remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
     )
 
-    #TODO legge til navigasjon for robotenee når dette er på plass.
+    #TODO robot_controller leser ikke coverage_path ennå, robotene følger bare veggen
+    
+    #global node, leser /map og publiserer /inflated_map
+    map_node = Node(
+        package='sar_robot',
+        executable='map_node',
+        output='screen'
+    )
+    #global node, lager en dekningsrute mellom robotene 
+    coverage_node = Node(
+        package='sar_robot',
+        executable='coverage_node',
+        output='screen'
+    )
 
-    return [verden, coordinator, reporter_0, reporter_1, controller_0, controller_1]
+    return [verden, coordinator, reporter_0, reporter_1, controller_0, controller_1, map_node, coverage_node]
 
 def generate_launch_description():
     return LaunchDescription([
