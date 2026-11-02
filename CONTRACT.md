@@ -18,15 +18,20 @@ mens koden ligger i `sar_robot/`.
 
 ## 1. Noder og ansvar
 
-| Node | Pakke | Ansvar |
-|---|---|---|
-| `mission_manager` | `sar_robot` | Styrer oppdraget og tilstandsmaskinen, bestemmer hva roboten gjør |
-| `navigation` | `sar_robot` | Kjører roboten til mål og unngår hindringer |
-| `victim_detector` | `sar_robot` | Finner mulige personer i kamerabildet og publiserer funn |
-| `base_driver` | TODO | Snakker med motorene, tar imot `/cmd_vel` og publiserer odometri |
-| `operator_ui` | TODO | Lar operatøren starte, stoppe og følge med på oppdraget |
+Våre noder:
 
-TODO: Avklar om vi bruker Nav2 til navigasjon eller lager vår egen.
+| Node | Kjører i | Hva den gjør |
+|---|---|---|
+| `coordinator` | global | Holder oversikt over hvilke markører som er funnet |
+| `marker_reporter` | tb3_0 og tb3_1 | Rapporterer markører roboten ser til scoring |
+| `wall_follower` | tb3_0 og tb3_1 | Følger veggen (reserve) |
+| `robot_controller` | tb3_0 og tb3_1 | Styrer roboten (ikke laget ennå) |
+
+`map_grid.py` er ikke en node, bare en klasse som leser kartet.
+
+Fra kurset: `scoring` (gir poeng), `aruco_node` (finner markører) og `map_server` (sender ut kartet).
+
+Vi bruker ikke Nav2, navigasjonen lager vi selv.
 
 ---
 
