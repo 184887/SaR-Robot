@@ -42,9 +42,27 @@ def launch_setup(context):
         remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
     )
 
-    #TODO legge til navigasjon for robotenee når dette er på plass. 
+    # robot_controller, en per robot. Følger hver sin vegg så de ikke kjører samme vei
+    controller_0 = Node(
+        package='sar_robot',
+        executable='robot_controller',
+        namespace='tb3_0',
+        output='screen',
+        parameters=[{'follow_left': False}],
+        remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
+    )
+    controller_1 = Node(
+        package='sar_robot',
+        executable='robot_controller',
+        namespace='tb3_1',
+        output='screen',
+        parameters=[{'follow_left': True}],
+        remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
+    )
 
-    return [verden, coordinator, reporter_0, reporter_1]
+    #TODO legge til navigasjon for robotenee når dette er på plass.
+
+    return [verden, coordinator, reporter_0, reporter_1, controller_0, controller_1]
 
 def generate_launch_description():
     return LaunchDescription([
