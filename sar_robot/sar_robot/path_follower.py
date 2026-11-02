@@ -1,5 +1,6 @@
 import math
 
+
 class PathFollower:
     """Følger en liste med punkter (x, y) i map. Uten ROS: tar inn posisjon, gir ut fart (v, w)"""
 
