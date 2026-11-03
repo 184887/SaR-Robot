@@ -60,7 +60,7 @@ def launch_setup(context):
         remappings=[('tf', '/tf'), ('tf_static', '/tf_static')],
     )
 
-    #TODO robot_controller leser ikke coverage_path ennå, robotene følger bare veggen
+    # robot_controller kjører etter /tb3_X/coverage_path fra coverage_node, og følger veggen til den kommer
     
     #global node, leser /map og publiserer /inflated_map
     map_node = Node(
