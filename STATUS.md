@@ -1,7 +1,7 @@
 # Status og plan videre – SaR-Robot
 
-**Dato:** 2026-10-19  
-**Utgangspunkt:** Rapporten forutsetter at alt som ligger på branchene er tatt inn i `main`. Fordelingen følger ukeplanen (`message.txt`):
+**Dato:** 2026-11-05  
+**Utgangspunkt:** Rapporten bygger på koden på `main` (commit `f4d5f43`, 3. november). «Ferdig» betyr at det er kodet. Repoet har ingen logg fra kjøring av hele systemet, så det som ikke er merket som testet, må regnes som utestet i Gazebo. Fordelingen følger ukeplanen (`message.txt`):
 
 | Person | Ansvar |
 |---|---|
@@ -12,131 +12,116 @@
 
 ---
 
-## 1. Dette må merges til main
+## 1. Kort oppsummert
 
-| Rekkefølge | Hva | Eier | Merknad |
-|---|---|---|---|
-| 1 | `origin/meldingstyper` | D | **main bygger ikke uten denne.** `coordinator.py` og `marker_reporter.py` bruker meldingstypene. |
-| 2 | `origin/feature/map-grid` | B | Rett først `python3-numphy` → `python3-numpy` i `sar_robot/package.xml`. |
-| 3 | Lokal endring i `coordinator.py` | C | Fjerner bare en kommentar. Bør forkastes (`git restore`). |
-| 4 | Fjern committede `__pycache__`/`.pyc` | D | `git rm -r --cached` etter at `.gitignore` fra punkt 2 er inne. |
+- ✅ Hele kjeden er kodet: `/map` → `map_node` → `coverage_node` → `robot_controller` (A* og stifølging) → `cmd_vel`. Markørene går fra `marker_reporter` til scoring og `coordinator`.
+- ❌ Storbrann-bonusen (+300) er ikke laget.
+- ❌ `README.MD` er tom (krav for innlevering), og `testlogg.md` finnes ikke.
+- ❓ Hele systemet er ikke dokumentert kjørt i w1–w5.
 
-Begge branchene merger uten konflikter mot main. Merges via pull request, og en annen person godkjenner (som avtalt).
+Tidligere branches er merget. `CONTRACT.md` er oppdatert til v0.3.
 
 ---
 
 ## 2. Per person
 
-Tegnforklaring: ✅ ferdig · 🟡 delvis · ❌ ikke gjort
+Tegnforklaring: ✅ ferdig · 🟡 delvis · ❌ ikke gjort · ❓ må sjekkes
 
 ### A – Bevegelse
 
 **Gjort**
-- ✅ Veggfølgeren er ferdig (`wall_follower.py`)
-  - Tilstandsmaskin og P-regulator, parameter `follow_left`
-  - Relative topicnavn (`scan`, `odom`, `cmd_vel`), så noden virker i namespace
-  - Timeout på `SVING_MOT`, så roboten ikke går i ring
+- ✅ `WallFollower` som egen klasse uten ROS, med parameter `follow_left` og timeout på `SVING_MOT`
+- ✅ `PathFollower` som egen klasse uten ROS
+- ✅ `robot_controller`: `FOLLOW_PATH` etter `coverage_path`, med A* mellom hvert punkt
+- ✅ Veggfølging til ruta kommer, når ruta er blokkert og når den er ferdig. Et punkt hoppes over etter `max_blocked` blokkeringer.
+- ✅ `RobotState` på `/robot_states`, med posisjon i `map` via tf2
 
 **Neste, i denne rekkefølgen**
-1. ❌ Publisere `RobotState` på `/robot_states`, med posisjon i `map` via tf2 (`lookup_transform('map', 'tb3_X/base_footprint')`)
-2. ❌ Skille ut en ren `WallFollower`-klasse (uten ROS) og lage noden `robot_controller.py`
-3. ❌ Modus `FOLLOW_PATH` i `robot_controller`: tar inn `nav_msgs/Path` fra B og kjører etter punktene. Fall tilbake til veggfølging hvis ruta er blokkert.
+1. ❓ Kjøre w1 og w2 i 10 minutter og skrive ned hvor robotene setter seg fast
+2. ❌ En måte å gi roboten et mål på, så C kan sende den til storbrannen. Målet må avbryte dekningsruta. **C trenger svar:** C foreslår `/tb3_0/goal` og `/tb3_1/goal` med `geometry_msgs/PoseStamped`.
+3. ❌ Se seg rundt ved hvert punkt (issue #14), hvis testene viser at kameraet går glipp av markører
 
-**Også igjen**
-- ❌ Kjøre 10 min på w1 og w2 og skrive ned hvor robotene setter seg fast
-- ❌ En måte å gi roboten et mål på, så C kan sende den til storbrannen. **C trenger svar:** C foreslår `/tb3_0/goal` og `/tb3_1/goal` med `geometry_msgs/PoseStamped`.
-
-**Husk:** noder i namespace som bruker TF må ha `remappings=[('tf', '/tf'), ('tf_static', '/tf_static')]` i launch-fila (se C).
-
-**Ferdig når:** du klikker et punkt i RViz, og roboten kjører dit uten å treffe vegger.  
-**Avhengig av:** B (rute), D (meldingstyper merget).
+**Ferdig når:** begge robotene kjører hele dekningsruta i w1 uten å treffe vegger eller stå fast, og kan sendes til et mål.  
+**Avhengig av:** B (rute og kart), C (avtale om måltopic).
 
 ---
 
 ### B – Kart og planlegging
 
-**Gjort** (på `feature/map-grid`)
-- ✅ `MapGrid` med `world_to_grid`, `grid_to_world`, `is_free`
-- ✅ `inflate()`: buffer rundt veggene, ukjent regnes som vegg
-- ✅ 4 enhetstester
+**Gjort**
+- ✅ `MapGrid` med `inflate()` og `downsample()`
+- ✅ `map_node` publiserer `/inflated_map`
+- ✅ A* i `planner.py`, med `planner_test_node` for `/clicked_point` → `/planned_path` i RViz
+- ✅ `coverage.py` og `coverage_node`: punkter fordelt på de to robotene, publisert på `/tb3_X/coverage_path`
 
-**Gjenstår fra uke 1**
-- ❌ Rette numpy-skrivefeilen og åpne PR (se del 1)
-- ❌ Node som leser `/map` (QoS TRANSIENT_LOCAL) og publiserer `/inflated_map`
-- ❌ Vise kartet med buffer i RViz
+**Neste**
+1. ❓ Sjekke at dekningspunktene dekker kartet i alle fem verdener
+2. ❓ Sjekke at `spacing` (1,5 m) er tett nok til at kameraet ser alle markørene
 
-**Neste (uke 2)**
-1. A*: `plan(start, mål) → [(x, y), ...]`, med enhetstester som for `MapGrid`
-2. Test med `/clicked_point` → `/planned_path` i RViz
-3. Utforskingsmål: lag en liste med punkter hver robot skal innom, så hele kartet blir dekket. Del kartet mellom de to robotene. (`coverage_node` deler allerede labyrinten i to områder, ifølge C.)
-
-**Ferdig når:** `/planned_path` vises i RViz for et klikket punkt, og utforskingsmålene dekker kartet i w1–w5.  
-**Leverer til:** A (rute), C (utforskingsmål).
+**Ferdig når:** utforskingsmålene dekker kartet i w1–w5.  
+**Leverer til:** A (kart og rute).
 
 ---
 
 ### C – Markører og koordinering
 
-**Gjort** (markørdelen er ferdig og ligger i main)
-- ✅ `marker_reporter` (én per robot): regner om posisjonen til `map` med en gang markøren sees, sender til scoring (`/set_marker_position`) og publiserer `MarkerFound` på `/markers_found`
-- ✅ Hopper over markører som allerede er godkjent (fra `/known_markers`)
-- ✅ Venter 5 s etter en avvisning før neste forsøk, og sender ikke markører som er over 3 m unna
+**Gjort**
+- ✅ `marker_reporter` (én per robot): regner om posisjonen til `map` med bildets tidspunkt, sender til scoring og publiserer `MarkerFound`
+- ✅ Hopper over markører som allerede er godkjent, venter 5 s før nytt forsøk og ignorerer markører over 3 m unna
 - ✅ `coordinator` (global node): logger `/markers_found` og `/robot_states`, publiserer `/known_markers` hvert sekund
-- ✅ TF-remapping i `sar.launch.py`: `remappings=[('tf', '/tf'), ('tf_static', '/tf_static')]`. Uten dette finner ikke noder i namespace TF i Foxy.
-- ✅ Testet: tb3_1 fikk markør 0 godkjent (600 → 700), coordinatoren logget det, og tb3_0 sendte ikke samme markør på nytt
-
-**Fortsatt i koden på `origin/main`** (sjekket 2026-11-02)
-- ❌ `lookup_transform` bruker `Time()` i stedet for `msg.header.stamp`
-- ❌ `clbk_known` overskriver `self.known` (`self.known = set(...)` i stedet for `|=`)
-- ❌ `future.result()` sjekkes ikke for `None` i `on_response`
+- ✅ Testet ifølge forrige versjon av denne rapporten (uten dato): tb3_1 fikk markør 0 godkjent (600 → 700), coordinatoren logget det, og tb3_0 sendte ikke samme markør på nytt
 
 **Neste**
 1. ❌ Storbrann (markør 4): når den er godkjent, avbryter coordinatoren søket og sender **begge** robotene dit (gir +300 når begge er innenfor 2 m)
 2. ❌ Logge tid fra start til hver markør, så D kan føre det i testloggen
 
-Å fordele hvor robotene leter er dekket av B sin `coverage_node`.
-
 **Testtips:** scoring godkjenner hver markør bare én gang, så start scoring på nytt mellom hver test.
 
 **Ferdig når:** storbrann-bonusen kommer i minst 4 av 5 verdener.  
-**Avhengig av:** A (måltopic og `RobotState`).
+**Avhengig av:** A (måltopic).
 
 ---
 
 ### D – Integrasjon og test
 
-**Gjort** (på `meldingstyper`)
-- ✅ `MarkerFound.msg`, `RobotState.msg`, `KnownMarkers.msg`, `rosidl_generate_interfaces`, slettet `test.*`
+**Gjort**
+- ✅ `MarkerFound.msg`, `RobotState.msg`, `KnownMarkers.msg`
+- ✅ Avhengigheter i `sar_robot/package.xml`, og `__pycache__`/`.pyc` er fjernet fra git
+- ✅ `sar.launch.py` med `world:=1..5`: starter verden, `coordinator`, `map_node`, `coverage_node`, og `marker_reporter` og `robot_controller` for hver robot
+- ✅ `CONTRACT.md` v0.3
 
-**Gjenstår fra uke 1** (dette er det viktigste i hele prosjektet nå)
-1. ❌ Merge `meldingstyper` og rydde `__pycache__` (se del 1)
-2. ❌ Legge inn avhengighetene som mangler i `sar_robot/package.xml`: `geometry_msgs`, `sensor_msgs`, `std_srvs`, `tf2_ros`, `tf2_geometry_msgs`, `ros2_aruco_interfaces`, `scoring_interfaces`
-3. ❌ `sar.launch.py` med `world:=1..5`: inkluderer `rescue_robots_w{N}.launch.py` og starter `wall_follower` og `marker_reporter` i `tb3_0` (`follow_left:=false`) og `tb3_1` (`follow_left:=true`), samt `coordinator`
-4. ❌ `testlogg.md` med første poengtall fra w1–w5 (bare veggfølging)
-5. ❌ README (`README.MD` er tom, og det er et krav for innlevering)
-6. ❌ `CONTRACT.md` v0.2. Den beskriver fortsatt den gamle arkitekturen (`mission_manager`, `Victim.msg` osv.) og må skrives om til de faktiske nodene og topicene.
-7. ❓ Branch protection på main. Sjekk på GitHub: de to siste commitene ser ut til å være pushet rett til main.
-
-**Neste (uke 2)**
-- Oppdatere `sar.launch.py` når nye noder kommer (`robot_controller`, kartnoden), med parametre i en YAML-fil
-- Kjøre w1–w5 etter hver merge til main og føre resultatet i testloggen
+**Neste**
+1. ❌ Kjøre w1–w5 og lage `testlogg.md` med dato, commit, verden, poeng, markører funnet, storbrann ja/nei og kommentar
+2. ❌ Skrive README med oppsett og kjøring
+3. ❌ Bestemme om `sar.launch.py` skal starte scoring. I dag må den startes for seg, med `ros2 run scoring scoring`.
+4. ❓ Branch protection på main. De to siste commitene (`5c1269c`, `f4d5f43`) ser ut til å være pushet rett til main.
+5. ❌ Rydde i issues: alle 29 åpne er fra 6. oktober, og flere ser ferdige ut (for eksempel #8 og #12)
+6. ❓ Få svar på spørsmålene til faglærer (issue #4)
+7. ❌ Fylle ut `description` og `license` i `sar_robot/setup.py` (står som TODO)
 
 **Ferdig når:** `ros2 launch sar_robot sar.launch.py world:=3` starter alt, og testloggen viser forbedring fra første kjøring.
 
 ---
 
-## 3. Rekkefølge og møtepunkter
+## 3. Tester
 
-| Når | Hvem | Hva |
+Sjekket 2026-11-05 uten ROS:
+
+- ✅ `test_wall_follower.py` og `test_path_follower.py`: alle 11 består
+- ❓ `test_map_grid.py`, `test_planner.py` og `test_coverage.py`: ikke kjørt, fordi numpy manglet. Kjør dem med `colcon test` i ROS-miljøet.
+
+---
+
+## 4. Forslag til rekkefølge
+
+| Rekkefølge | Hvem | Hva |
 |---|---|---|
-| Nå | D | Merger `meldingstyper`, rydder, legger inn avhengigheter |
-| Nå | B | Retter numpy, åpner PR for `feature/map-grid` |
-| Nå | C | Storbrann i coordinatoren, retter de tre feilene i `marker_reporter` |
-| Nå | A | Publiserer `RobotState`, deretter deler opp i klasse og node |
-| Etter 1–2 dager | D | `sar.launch.py` virker, første testlogg på w1–w5 |
-| Midt i uke 2 | A + B | Kobler A* til `FOLLOW_PATH` |
-| Midt i uke 2 | C | Tester storbrann med teleop |
-| Slutten av uke 2 | Alle | Full kjøring på w1–w5. Hver person forklarer koden sin (trening til muntlig). D viser testloggen. |
+| 1 | A + D | Full kjøring på w1, første tall i testloggen |
+| 2 | A + B | Rette det som dukker opp: fastkjøring, punkter uten rute, markører som ikke blir sett |
+| 3 | A + C | Avtale måltopic, og lage det i `robot_controller` og `coordinator` |
+| 4 | C | Teste storbrann i alle verdener |
+| 5 | D | README, og kjøre w1–w5 etter hver merge til main |
+| 6 | Alle | Forberede presentasjon og demo-video (issue #27, #28, #30). Hver person forklarer koden sin. |
 
 ### Hvordan poeng gis (fra `scoring.py`)
 
