@@ -1,38 +1,37 @@
-import rclpy
-from rclpy.node import Node
-from rclpy.time import Time
+import math
 import time
 
-from geometry_msgs.msg import PointStamped
-from ros2_aruco_interfaces.msg import ArucoMarkers
+import rclpy
+from rclpy.node import Node
+
+from geometry_msgs.msg import Pose
+from std_msgs.msg import Int64
 from sar_robot_interface.msg import KnownMarkers, MarkerFound
 from scoring_interfaces.srv import SetMarkerPosition
-from tf2_ros import TransformException
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
-import tf2_geometry_msgs
 
 
 class MarkerReporter(Node):
-    """Én per robot: rapporterer nye ArUco-markører til scoring."""
+    """Én per robot: rapporterer nye markører til scoring, fra marker_pose sine topics."""
 
     def __init__(self):
-        """Setter opp TF, abonnementer, publisher og klienten til scoring."""
+        """Setter opp abonnementer, publisher og klienten til scoring."""
         super().__init__('marker_reporter')
         self.robot_id = self.get_namespace().strip('/')   # 'tb3_0' eller 'tb3_1'
-        self.camera_frame = self.robot_id + '/camera_rgb_optical_frame'
 
         self.known = set()     # godkjent av noen (fra coordinator)
         self.pending = set()   # venter på svar fra scoring
         self.accepted = 0
         self.rejected = 0
-        self.last_try = {}
+        self.last_try = {}     # marker_id -> når vi sist sendte den
 
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.last_pose = None  # siste posisjon fra marker_map_pose
+        self.start_id = None
+        self.start_pos = None
+        self.count = 0
 
-        # 'aruco_markers' uten / foran, så namespace legges på automatisk
-        self.create_subscription(ArucoMarkers, 'aruco_markers', self.clbk_markers, 10)
+        # marker_pose  publiserer disse i kart-koordinater
+        self.create_subscription(Pose, 'marker_map_pose', self.clbk_pose, 10)
+        self.create_subscription(Int64, 'marker_id', self.clbk_id, 10)
         self.create_subscription(KnownMarkers, '/known_markers', self.clbk_known, 10)
         self.found_pub = self.create_publisher(MarkerFound, '/markers_found', 10)
         self.client = self.create_client(SetMarkerPosition, '/set_marker_position')
@@ -40,33 +39,36 @@ class MarkerReporter(Node):
         self.get_logger().info(f'marker_reporter startet for {self.robot_id}')
 
     def clbk_known(self, msg):
-        """Oppdaterer listen over markører som allerede er godkjent."""
+        """Legger til markører som coordinatoren sier er godkjent ."""
         self.known |= set(msg.marker_ids)
 
-    def clbk_markers(self, msg):
-        """Kalles når kameraet ser markører: filtrerer, regner om til kartet og rapporterer."""
-        # Kalles hver gang kameraet ser markører. Posisjonen regnes om HER,
-        # ikke i en timer, så vi sender aldri en gammel posisjon.
-        for marker_id, pose in zip(msg.marker_ids, msg.poses):
-            marker_id = int(marker_id)
-            if marker_id in self.known or marker_id in self.pending:
-                continue
-            if time.time() - self.last_try.get(marker_id, 0) < 5.0:   # NY
-                continue 
-            if pose.position.z > 3.0:
-                continue
-                                                              # NY
+    def clbk_pose(self, msg):
+        """Husker siste posisjon. marker_pose sender posisjonen rett før ID-en."""
+        self.last_pose = msg.position
 
-            try:
-                                tf = self.tf_buffer.lookup_transform(
-                    'map', self.camera_frame, Time.from_msg(msg.header.stamp))
-            except TransformException:
-                continue
+    def clbk_id(self, msg):
+        """Rapporterer markøren hvis den har stått stille i kartet i 1 sekund."""
+        marker_id = int(msg.data)
+        p = self.last_pose
+        if p is None:
+            return
 
-            p = PointStamped()
-            p.point = pose.position
-            p_map = tf2_geometry_msgs.do_transform_point(p, tf).point
-            self.report(marker_id, p_map)
+        # Ny markør, eller har den flyttet seg over 5 cm? Da starter vi tellingen på nytt.
+        if marker_id != self.start_id or math.hypot(p.x - self.start_pos.x, p.y - self.start_pos.y) > 0.05:
+            self.start_id = marker_id
+            self.start_pos = p
+            self.count = 0
+            return
+
+        self.count += 1
+        if self.count < 10:   # 10 meldinger = 1 sekund
+            return
+
+        if marker_id in self.known or marker_id in self.pending:
+            return
+        if time.time() - self.last_try.get(marker_id, 0) < 5.0:
+            return
+        self.report(marker_id, p)
 
     def report(self, marker_id, position):
         """Sender markøren og posisjonen til scoring-tjenesten."""
