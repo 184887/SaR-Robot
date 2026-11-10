@@ -1,7 +1,7 @@
 # Status og plan videre – SaR-Robot
 
 **Dato:** 2026-11-05  
-**Utgangspunkt:** Rapporten bygger på koden på `main` (commit `f4d5f43`, 3. november). «Ferdig» betyr at det er kodet. Repoet har ingen logg fra kjøring av hele systemet, så det som ikke er merket som testet, må regnes som utestet i Gazebo. Fordelingen følger ukeplanen (`message.txt`):
+**Utgangspunkt:** Rapporten bygger på koden på `main` (commit `b9412bb`, 3. november). «Ferdig» betyr at det er kodet. Repoet har ingen logg fra kjøring av hele systemet, så det som ikke er merket som testet, må regnes som utestet i Gazebo. Fordelingen følger ukeplanen (`message.txt`):
 
 | Person | Ansvar |
 |---|---|
@@ -15,7 +15,7 @@
 ## 1. Kort oppsummert
 
 - ✅ Hele kjeden er kodet: `/map` → `map_node` → `coverage_node` → `robot_controller` (A* og stifølging) → `cmd_vel`. Markørene går fra `marker_reporter` til scoring og `coordinator`.
-- ❌ Storbrann-bonusen (+300) er ikke laget.
+- ❌ Storbrann-logikken er ikke laget. Uten den stopper ikke klokka, og maks poeng er 500 (se «Hvordan poeng gis»).
 - ❌ `README.MD` er tom (krav for innlevering), og `testlogg.md` finnes ikke.
 - ❓ Hele systemet er ikke dokumentert kjørt i w1–w5.
 
@@ -93,8 +93,8 @@ Tegnforklaring: ✅ ferdig · 🟡 delvis · ❌ ikke gjort · ❓ må sjekkes
 **Neste**
 1. ❌ Kjøre w1–w5 og lage `testlogg.md` med dato, commit, verden, poeng, markører funnet, storbrann ja/nei og kommentar
 2. ❌ Skrive README med oppsett og kjøring
-3. ❌ Bestemme om `sar.launch.py` skal starte scoring. I dag må den startes for seg, med `ros2 run scoring scoring`.
-4. ❓ Branch protection på main. De to siste commitene (`5c1269c`, `f4d5f43`) ser ut til å være pushet rett til main.
+3. ❌ Bestemme om `sar.launch.py` skal starte scoring. I dag må den startes for seg, med `ros2 run scoring scoring`. `robot_controller` begynner å kjøre med en gang, altså før scoring er i gang, så rekkefølgen må avklares før dere tar tiden.
+4. ❌ Slå på branch protection på main. Sjekket 2026-11-05: main er ikke beskyttet, og de to siste kodecommitene (`3c338b9`, `b9412bb`) ser ut til å være pushet rett dit.
 5. ❌ Rydde i issues: alle 29 åpne er fra 6. oktober, og flere ser ferdige ut (for eksempel #8 og #12)
 6. ❓ Få svar på spørsmålene til faglærer (issue #4)
 7. ❌ Fylle ut `description` og `license` i `sar_robot/setup.py` (står som TODO)
@@ -105,10 +105,11 @@ Tegnforklaring: ✅ ferdig · 🟡 delvis · ❌ ikke gjort · ❓ må sjekkes
 
 ## 3. Tester
 
-Sjekket 2026-11-05 uten ROS:
+Sjekket 2026-11-05 uten ROS, i et eget Python-miljø med numpy og scipy:
 
-- ✅ `test_wall_follower.py` og `test_path_follower.py`: alle 11 består
-- ❓ `test_map_grid.py`, `test_planner.py` og `test_coverage.py`: ikke kjørt, fordi numpy manglet. Kjør dem med `colcon test` i ROS-miljøet.
+- ✅ `test_wall_follower.py`, `test_path_follower.py`, `test_map_grid.py`, `test_planner.py` og `test_coverage.py`: alle 24 består
+- ❓ `test_flake8.py`, `test_pep257.py` og `test_copyright.py`: ikke kjørt. Kjør dem med `colcon test` i ROS-miljøet.
+- ❓ Nodene er ikke kjørt, fordi ROS ikke var installert på maskinen.
 
 ---
 
@@ -128,5 +129,6 @@ Sjekket 2026-11-05 uten ROS:
 - Start på 600, minus 1 per sekund
 - +100 per godkjent markør (ID 0–4)
 - +300 når markør 4 er rapportert og begge robotene er innenfor 2 m av den
+- Klokka stopper først når begge robotene har vært ved markør 4 og alle fem markørene er rapportert. Ellers går den til 600 s, og sluttpoengsummen blir bare markørpoengene (maks 500).
 
-Det viktigste er derfor å finne alle markørene raskt (A + B) og samle begge robotene ved storbrannen (C).
+Det viktigste er derfor å samle begge robotene ved storbrannen (A + C), og å finne alle markørene raskt (A + B). Uten samlingen teller ikke tiden.

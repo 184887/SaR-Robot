@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Path
 from sensor_msgs.msg import LaserScan
 from std_srvs.srv import SetBool
@@ -36,12 +36,14 @@ class RobotController(Node):
         self.declare_parameter('blocked_dist', 0.3)   # noe nærmere enn dette foran = ruta er blokkert
         self.declare_parameter('blocked_time', 3.0)   # så lenge vi følger veggen før vi prøver ruta igjen
         self.declare_parameter('max_blocked', 2)      # ganger et punkt kan blokkere før vi hopper over det
+        self.declare_parameter('goal_tolerance', 1.0)  # så nær målet vi stopper (scoring krever 2 m)
         self.follower = WallFollower(self.get_parameter('follow_left').value,
                                      self.get_parameter('sving_mot_timeout').value)
         self.factor = self.get_parameter('cell_factor').value
         self.blocked_dist = self.get_parameter('blocked_dist').value
         self.blocked_time = self.get_parameter('blocked_time').value
         self.max_blocked = self.get_parameter('max_blocked').value
+        self.goal_tolerance = self.get_parameter('goal_tolerance').value
 
         self.path = PathFollower()
         self.planner = None
@@ -50,6 +52,7 @@ class RobotController(Node):
         self.blocked_count = 0
         self.blocked_until = 0.0
         self.mode = None
+        self.goal = None         # mål fra coordinatoren (x, y), går foran dekningsruta
 
         self.robot_id = self.get_namespace().strip('/')   # 'tb3_0' eller 'tb3_1'
         self.map_frame = 'map'
@@ -61,6 +64,7 @@ class RobotController(Node):
         self.create_subscription(OccupancyGrid, '/inflated_map', self.clbk_map, MAP_QOS)
         # uten / foran, så tb3_0 får /tb3_0/coverage_path
         self.create_subscription(Path, 'coverage_path', self.clbk_path, MAP_QOS)
+        self.create_subscription(PoseStamped, 'goal', self.clbk_goal, 10)   # /tb3_X/goal
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.create_service(SetBool, 'wallfollower_switch', self.clbk_switch)
         # '/robot_states' med / foran, så begge robotene publiserer på samme globale topic
@@ -77,6 +81,9 @@ class RobotController(Node):
 
         if self.active:
             self.follower.reset()
+            if self.goal is not None:   # på igjen etter målet: fortsett dekningsruta
+                self.targets = [t for t in self.targets if t != self.goal]
+                self.goal = None
         else:
             self.pub.publish(Twist())
 
@@ -94,6 +101,18 @@ class RobotController(Node):
         self.target = None
         self.path.set_path([])
         self.get_logger().info(f'Fikk {len(self.targets)} dekningspunkter')
+
+    def clbk_goal(self, msg):
+        """Mål fra coordinatoren. Kjøres før resten av dekningsruta, som fortsetter etterpå"""
+        self.goal = (msg.pose.position.x, msg.pose.position.y)
+        if self.target is not None:
+            self.targets.insert(0, self.target)   # punktet vi var på vei til, tas etter målet
+        self.targets.insert(0, self.goal)
+        self.target = None
+        self.path.set_path([])
+        self.blocked_count = 0
+        self.blocked_until = 0.0
+        self.get_logger().info(f'Fikk mål ({self.goal[0]:.2f}, {self.goal[1]:.2f})')
 
     def robot_pose(self):
         """(x, y, theta) i map, eller None hvis transformen ikke finnes ennå"""
@@ -137,7 +156,7 @@ class RobotController(Node):
             self.blocked_count += 1
             self.blocked_until = naa + self.blocked_time
             self.path.set_path([])
-            if self.blocked_count < self.max_blocked:
+            if self.blocked_count < self.max_blocked or self.target == self.goal:
                 self.targets.insert(0, self.target)   # prøv samme punkt igjen etterpå
                 self.get_logger().warn('Ruta er blokkert, følger veggen en stund')
             else:
@@ -157,7 +176,12 @@ class RobotController(Node):
 
         naa = self.get_clock().now().nanoseconds / 1e9
         forrige = self.mode or self.follower.state.name
-        if self.use_path(pose, naa):
+        if self.goal is not None and pose is not None and \
+                math.hypot(pose[0] - self.goal[0], pose[1] - self.goal[1]) < self.goal_tolerance:
+            self.mode = 'AT_GOAL'           # står og venter til coordinatoren skrur oss på igjen
+            self.path.set_path([])
+            v, w = 0.0, 0.0
+        elif self.use_path(pose, naa):
             self.mode = 'FOLLOW_PATH'
             v, w = self.path.step(*pose)
         else:
