@@ -16,7 +16,6 @@ class State(Enum):
 
 
 class WallFollower:
-    """Veggfølger uten ROS: tar inn laseravstander og tid, gir ut fart (v, w)"""
 
     def __init__(self, follow_left=False, sving_mot_timeout=7.0):
         self.follow_left = follow_left  # velg side: False = høyre vegg, True = venstre
@@ -76,14 +75,14 @@ class WallFollower:
         v = 0.0
         w = 0.0
         if self.state == State.FINN_VEGG:
-            v = 0.15
+            v = 0.22
         elif self.state == State.SVING_BORT:
             w = 0.5
         elif self.state == State.SVING_MOT:
-            v = 0.15
+            v = 0.22
             w = -0.5
         elif self.state == State.FOLLOW_WALL:
-            v = 0.15
+            v = 0.22
             w = max(-0.5, min(0.5, (d_ref - side) * Kp))
 
         return v, self.sign * w
