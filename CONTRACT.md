@@ -1,13 +1,13 @@
 # Kontrakt for SaR-Robot
 
-Versjon 0.3, 5 november 2026.
+Versjon 0.4, 11 november 2026.
 
 Her står hvordan nodene våre snakker sammen. Koden ligger i sar_robot og meldingstypene i sar_robot_interface.
 
 
 ## 1. Noder
 
-- coordinator (global): holder oversikt over hvilke markører som er funnet
+- coordinator (global): holder oversikt over hvilke markører som er funnet, og sender begge robotene til storbrannen (markør 4)
 - marker_reporter (en per robot): rapporterer markører roboten ser til scoring
 - robot_controller (en per robot): kjører roboten mellom punktene i ruta, med A* mellom hvert punkt, og sender posisjonen. Følger veggen til ruta kommer, når ruta er blokkert og når den er ferdig
 - map_node (global): gjør veggene i kartet tykkere
@@ -32,6 +32,7 @@ Felles for begge robotene:
 
 For hver robot (tb3_0 og tb3_1):
 - coverage_path (Path): coverage_node sender, robot_controller leser
+- goal (PoseStamped): coordinator sender posisjonen til storbrannen, robot_controller leser. Målet kjøres før resten av dekningsruta, og roboten stopper når den er innenfor goal_tolerance
 - aruco_markers (ArucoMarkers): aruco_node sender, marker_reporter leser
 - scan (LaserScan): roboten sender, robot_controller leser
 - cmd_vel (Twist): robot_controller sender, roboten leser
@@ -42,7 +43,7 @@ Kartet og rutene sendes bare en gang. Derfor må de leses med samme QoS som de s
 ## 3. Services
 
 - /set_marker_position (SetMarkerPosition fra scoring_interfaces): scoring er server og marker_reporter er klient. Vi sender marker_id og posisjonen, og får tilbake om den ble godkjent.
-- wallfollower_switch (SetBool), en per robot: robot_controller er server. True starter kjøringen og false stopper roboten. Ingen bruker den ennå.
+- wallfollower_switch (SetBool), en per robot: robot_controller er server. True starter kjøringen og false stopper roboten. coordinator stopper en robot som er framme ved storbrannen, og skrur på begge når begge er innenfor 2 m. Da fjernes målet, og roboten fortsetter dekningsruta.
 
 
 ## 4. Meldingstyper
@@ -56,7 +57,7 @@ MarkerFound:
 RobotState:
 - robot_id (string)
 - x, y og theta (float64)
-- state (string), hva roboten holder på med: FOLLOW_PATH når den følger ruta, ellers det veggfølgeren gjør: FINN_VEGG, SVING_BORT, FOLLOW_WALL eller SVING_MOT
+- state (string), hva roboten holder på med: FOLLOW_PATH når den følger ruta, AT_GOAL når den står ved målet, ellers det veggfølgeren gjør: FINN_VEGG, SVING_BORT, FOLLOW_WALL eller SVING_MOT
 
 KnownMarkers:
 - marker_ids (liste med int8)
@@ -77,7 +78,8 @@ KnownMarkers:
 - cell_factor i robot_controller: hvor mye kartet skaleres ned før A*. Standard 5, som i coverage_node.
 - blocked_dist i robot_controller: er noe nærmere enn dette foran roboten, er ruta blokkert. Standard 0.3 m.
 - blocked_time i robot_controller: sekunder den følger veggen før den prøver ruta igjen. Standard 3.
-- max_blocked i robot_controller: ganger et punkt kan blokkere før det hoppes over. Standard 2.
+- max_blocked i robot_controller: ganger et punkt kan blokkere før det hoppes over. Standard 2. Gjelder ikke målet, det prøves til roboten er framme.
+- goal_tolerance i robot_controller: så nær målet roboten stopper. Standard 1.0 m.
 - inflation_radius i map_node: hvor mye tykkere veggene blir. Standard 0.25 m.
 - spacing i coverage_node: avstand mellom punktene i ruta. Standard 1.5 m.
 - cell_factor i coverage_node: hvor mye kartet skaleres ned før A*. Standard 5.
@@ -90,3 +92,4 @@ Hvis du endrer et topic, en service eller en meldingstype, oppdater denne fila i
 - 0.1 (8 oktober): første utkast
 - 0.2 (2 november): skrevet om etter nodene vi faktisk har
 - 0.3 (5 november): robot_controller følger coverage_path og leser /inflated_map, state kan være FOLLOW_PATH, nye parametre i robot_controller
+- 0.4 (11 november): nytt topic goal for hver robot, coordinator sender storbrannen dit og bruker wallfollower_switch, state kan være AT_GOAL, ny parameter goal_tolerance

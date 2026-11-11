@@ -83,6 +83,9 @@ class RobotController(Node):
             self.follower.reset()
             if self.goal is not None:   # på igjen etter målet: fortsett dekningsruta
                 self.targets = [t for t in self.targets if t != self.goal]
+                if self.target == self.goal:   # stoppet før vi var helt framme
+                    self.target = None
+                    self.path.set_path([])
                 self.goal = None
         else:
             self.pub.publish(Twist())

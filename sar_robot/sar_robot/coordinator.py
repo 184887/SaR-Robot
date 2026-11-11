@@ -3,12 +3,9 @@ import math
 import rclpy
 from rclpy.node import Node
 
-from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import SetBool
 from sar_robot_interface.msg import KnownMarkers, MarkerFound, RobotState
-
-from sar_robot.coverage_node import CoverageNode
-from sar_robot.map_node import MAP_QOS
 
 ROBOTS = ['tb3_0', 'tb3_1']
 
@@ -30,11 +27,11 @@ class Coordinator(Node):
         self.known_pub = self.create_publisher(KnownMarkers, '/known_markers', 10)
         self.create_timer(1.0, self.publish_known)
 
-        # robot_controller kjører dit coverage_path sier, og kan skrus av og på
-        self.path_pubs = {}
+        # robot_controller kjører til målet før resten av dekningsruta, og kan skrus av og på
+        self.goal_pubs = {}
         self.switches = {}
         for robot in ROBOTS:
-            self.path_pubs[robot] = self.create_publisher(Path, f'/{robot}/coverage_path', MAP_QOS)
+            self.goal_pubs[robot] = self.create_publisher(PoseStamped, f'/{robot}/goal', 10)
             self.switches[robot] = self.create_client(SetBool, f'/{robot}/wallfollower_switch')
 
         self.get_logger().info('coordinator startet')
@@ -50,10 +47,13 @@ class Coordinator(Node):
         if msg.marker_id == 4 and self.fire is None:
             self.fire = (msg.position.x, msg.position.y)
             self.get_logger().info('STORBRANN funnet, sender begge robotene dit')
-            # robot_controller tar bare imot en rute (Path), så vi lager en med ett punkt
-            path = CoverageNode.to_path([self.fire])
+            goal = PoseStamped()
+            goal.header.frame_id = 'map'
+            goal.header.stamp = self.get_clock().now().to_msg()
+            goal.pose.position.x, goal.pose.position.y = self.fire
+            goal.pose.orientation.w = 1.0
             for robot in ROBOTS:
-                self.path_pubs[robot].publish(path)
+                self.goal_pubs[robot].publish(goal)
 
     def clbk_robot_state(self, msg):
         """Lagrer posisjonen. Stopper roboten ved storbrannen til begge er der."""
@@ -74,7 +74,9 @@ class Coordinator(Node):
         if all(r in self.positions and self.dist_to_fire(r) < 2.0 for r in ROBOTS):
             self.get_logger().info('Begge robotene er ved storbrannen, fortsetter søket')
             self.fire_done = True
-            for robot in self.waiting:
+            # alle, ikke bare de som venter: på igjen fjerner målet, ellers blir en
+            # robot som var mellom 1,5 og 2 m stående ved målet for alltid
+            for robot in ROBOTS:
                 self.set_active(robot, True)
 
     def publish_known(self):
