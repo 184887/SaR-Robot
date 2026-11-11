@@ -1,11 +1,10 @@
 from enum import Enum, auto
 
-# Grenser i meter. Ut-grensen er større enn inn-grensen (hysterese), så roboten
-# ikke bytter tilstand fram og tilbake når avstanden ligger rett rundt grensen.
-FRONT_INN = 0.5   # vegg nærmere enn dette foran: SVING_BORT
-FRONT_UT = 0.65   # SVING_BORT til det er så mye plass foran
-SIDE_INN = 0.7    # vegg nærmere enn dette på siden: FOLLOW_WALL
-SIDE_UT = 0.85    # FOLLOW_WALL til veggen er så langt unna
+
+FRONT_INN = 0.5   
+FRONT_UT = 0.65   
+SIDE_INN = 0.7    
+SIDE_UT = 0.85    
 
 
 class State(Enum):
