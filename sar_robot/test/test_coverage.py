@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-from sar_robot.coverage import coverage_points, path_distances, split_route
+from sar_robot.coverage import coverage_points, path_distances, route_length, split_route
 from sar_robot.map_grid import MapGrid
 
 STARTS = [(0.5, 0.5), (0.5, 1.5)]
@@ -46,8 +46,13 @@ def test_split_route():
     m = make_map()
     points = coverage_points(m, STARTS[0], 0.5)
     routes = split_route(m, points, STARTS)
-    assert abs(len(routes[0]) - len(routes[1])) <= 1
-    assert sorted(routes[0] + routes[1]) == sorted(points)
+    assert sorted(routes[0] + routes[1]) == sorted(points)   # alle punktene er med, ingen dobbelt
+
+    D = path_distances(m, list(STARTS) + routes[0] + routes[1])
+    n0 = len(routes[0])
+    a = route_length(D, 0, range(2, 2 + n0))
+    b = route_length(D, 1, range(2 + n0, len(D)))
+    assert abs(a - b) <= 0.3 * max(a, b)   # omtrent like lange
 
 
 def test_start_in_wall():

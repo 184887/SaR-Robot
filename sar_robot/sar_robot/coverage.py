@@ -34,7 +34,10 @@ def coverage_points(map_grid, start_xy, spacing):
 
 
 def path_distances(map_grid, points):
-    """Måler lengde mellom punkter når man kjører langs gangene og ikke gjennom vegger. Bruker Djikstra"""
+    """
+    Måler lengde mellom punkter når man kjører langs gangene og ikke gjennom vegger.
+    Bruker Dijkstra.
+    """
     free = map_grid.grid == 0
     height, width = free.shape
     index = np.arange(height * width).reshape(height, width)
@@ -52,6 +55,15 @@ def path_distances(map_grid, points):
     return dist[:, cells] * map_grid.resolution
 
 
+def route_length(D, start, seq):
+    """Kjørelengde fra start gjennom seq, i rekkefølge"""
+    length, current = 0.0, start
+    for j in seq:
+        length += D[current][j]
+        current = j
+    return length
+
+
 def split_route(map_grid, points, starts):
     """Lag én rute gjennom alle punktene og del den i to, én halvdel per robot"""
     D = path_distances(map_grid, list(starts) + points)
@@ -66,8 +78,17 @@ def split_route(map_grid, points, starts):
         left.remove(current)
         order.append(current)
 
-    half = len(order) // 2
-    first, second = order[:half], order[half:]
-    if D[1][second[-1]] < D[1][second[0]]:  # robot 1 starter i den enden som er nærmest
-        second.reverse()
+    if len(order) < 2:
+        return [[points[i - n] for i in order], []]
+
+    best = None
+    for k in range(1, len(order)):
+        first, second = order[:k], order[k:]
+        # robot 1 kjører korteste vei
+        second = min(second, second[::-1], key=lambda s: route_length(D, 1, s))
+        longest = max(route_length(D, 0, first), route_length(D, 1, second))
+        if best is None or longest < best[0]:
+            best = (longest, first, second)
+
+    _, first, second = best
     return [[points[i - n] for i in first], [points[i - n] for i in second]]
