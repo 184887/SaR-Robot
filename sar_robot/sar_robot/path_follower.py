@@ -4,7 +4,7 @@ import math
 class PathFollower:
     """Følger en liste med punkter (x, y) i map. Uten ROS: tar inn posisjon, gir ut fart (v, w)"""
 
-    def __init__(self, tolerance=0.2, v_max=0.15, Kp=1.0):
+    def __init__(self, tolerance=0.2, v_max=0.22, Kp=1.0):
         self.tolerance = tolerance   # hvor nær et punkt vi må være for å regne det som nådd
         self.v_max = v_max
         self.Kp = Kp
