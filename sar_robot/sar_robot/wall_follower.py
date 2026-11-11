@@ -1,5 +1,12 @@
 from enum import Enum, auto
 
+# Grenser i meter. Ut-grensen er større enn inn-grensen (hysterese), så roboten
+# ikke bytter tilstand fram og tilbake når avstanden ligger rett rundt grensen.
+FRONT_INN = 0.5   # vegg nærmere enn dette foran: SVING_BORT
+FRONT_UT = 0.65   # SVING_BORT til det er så mye plass foran
+SIDE_INN = 0.7    # vegg nærmere enn dette på siden: FOLLOW_WALL
+SIDE_UT = 0.85    # FOLLOW_WALL til veggen er så langt unna
+
 
 class State(Enum):
     FINN_VEGG = auto()
@@ -46,9 +53,11 @@ class WallFollower:
 
     def update_state(self, naa):
         """Bytter tilstand ut fra sonene. naa er tiden i sekunder"""
-        if self.regions['front'] < 0.5:
+        front = FRONT_UT if self.state == State.SVING_BORT else FRONT_INN
+        side = SIDE_UT if self.state == State.FOLLOW_WALL else SIDE_INN
+        if self.regions['front'] < front:
             self.state = State.SVING_BORT
-        elif self.regions['side'] < 0.7:
+        elif self.regions['side'] < side:
             self.state = State.FOLLOW_WALL
         elif self.state == State.FOLLOW_WALL:
             self.state = State.SVING_MOT

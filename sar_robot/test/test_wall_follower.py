@@ -53,3 +53,32 @@ def test_ugyldige_verdier_ignoreres():
     wf = WallFollower()
     wf.set_scan([float('inf')] * 360, 0.1, 10.0)
     assert wf.regions['front'] == float('inf')
+
+
+def test_hysterese_side():
+    wf = WallFollower(follow_left=False)
+    wf.set_scan(scan(right=0.65), 0.1, 10.0)
+    wf.step(0.0)
+    assert wf.state == State.FOLLOW_WALL
+    wf.set_scan(scan(right=0.75), 0.1, 10.0)   # over inn-grensen, under ut-grensen
+    wf.step(0.1)
+    assert wf.state == State.FOLLOW_WALL
+    wf.set_scan(scan(right=0.9), 0.1, 10.0)
+    wf.step(0.2)
+    assert wf.state == State.SVING_MOT
+    wf.set_scan(scan(right=0.75), 0.1, 10.0)   # tilbake inn krever under 0.7
+    wf.step(0.3)
+    assert wf.state == State.SVING_MOT
+
+
+def test_hysterese_front():
+    wf = WallFollower()
+    wf.set_scan(scan(front=0.45), 0.1, 10.0)
+    wf.step(0.0)
+    assert wf.state == State.SVING_BORT
+    wf.set_scan(scan(front=0.6), 0.1, 10.0)   # fortsatt for trangt til å slutte å svinge
+    wf.step(0.1)
+    assert wf.state == State.SVING_BORT
+    wf.set_scan(scan(front=0.7), 0.1, 10.0)
+    wf.step(0.2)
+    assert wf.state != State.SVING_BORT
