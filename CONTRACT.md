@@ -1,6 +1,6 @@
 # Kontrakt for SaR-Robot
 
-Versjon 0.4, 11 november 2026.
+Versjon 0.5, 12 november 2026.
 
 Her står hvordan nodene våre snakker sammen. Koden ligger i sar_robot og meldingstypene i sar_robot_interface.
 
@@ -8,15 +8,15 @@ Her står hvordan nodene våre snakker sammen. Koden ligger i sar_robot og meldi
 ## 1. Noder
 
 - coordinator (global): holder oversikt over hvilke markører som er funnet, og sender begge robotene til storbrannen (markør 4)
-- marker_reporter (en per robot): rapporterer markører roboten ser til scoring
-- robot_controller (en per robot): kjører roboten mellom punktene i ruta, med A* mellom hvert punkt, og sender posisjonen. Følger veggen til ruta kommer, når ruta er blokkert og når den er ferdig
+- marker_reporter (en per robot): rapporterer markører roboten ser til scoring, og ber roboten stå stille når den ser en ny markør
+- robot_controller (en per robot): kjører roboten mellom punktene i ruta, med A* mellom hvert punkt, og sender posisjonen. Følger veggen til ruta kommer, når ruta er blokkert og når den er ferdig. Står stille i 2 s når marker_reporter ber om det
 - map_node (global): gjør veggene i kartet tykkere
 - coverage_node (global): lager en rute med punkter til hver robot
 - planner_test_node (global): bare for å teste A* i RViz, er ikke med i launch-fila
 
 Disse filene er ikke noder, bare klasser som nodene bruker: wall_follower.py, path_follower.py, map_grid.py, planner.py (A*) og coverage.py.
 
-Fra kurset bruker vi scoring (gir poeng), aruco_node (finner markører) og map_server (sender ut kartet). aruco_node og map_server startes av launch-filene til verdenene. scoring er ikke med i sar.launch.py og må startes for seg.
+Fra kurset bruker vi scoring (gir poeng), aruco_node (finner markører), marker_recognition (regner om markøren til map) og map_server (sender ut kartet). aruco_node, marker_recognition og map_server startes av launch-filene til verdenene. scoring er ikke med i sar.launch.py og må startes for seg.
 
 Vi bruker ikke Nav2, navigasjonen lager vi selv.
 
@@ -33,7 +33,9 @@ Felles for begge robotene:
 For hver robot (tb3_0 og tb3_1):
 - coverage_path (Path): coverage_node sender, robot_controller leser
 - goal (PoseStamped): coordinator sender posisjonen til storbrannen, robot_controller leser. Målet kjøres før resten av dekningsruta, og roboten stopper når den er innenfor goal_tolerance
-- aruco_markers (ArucoMarkers): aruco_node sender, marker_reporter leser
+- aruco_markers (ArucoMarkers): aruco_node sender når kameraet ser en markør, marker_recognition leser
+- marker_map_pose (Pose) og marker_id (Int64): marker_recognition sender den siste markøren i map hvert 0.1 s, også når kameraet ikke ser den lenger. marker_reporter leser
+- marker_pause (Bool): marker_reporter sender true når den ser en ny markør, robot_controller leser og står stille i 2 s
 - scan (LaserScan): roboten sender, robot_controller leser
 - cmd_vel (Twist): robot_controller sender, roboten leser
 
@@ -43,7 +45,7 @@ Kartet og rutene sendes bare en gang. Derfor må de leses med samme QoS som de s
 ## 3. Services
 
 - /set_marker_position (SetMarkerPosition fra scoring_interfaces): scoring er server og marker_reporter er klient. Vi sender marker_id og posisjonen, og får tilbake om den ble godkjent.
-- wallfollower_switch (SetBool), en per robot: robot_controller er server. True starter kjøringen og false stopper roboten. coordinator stopper en robot som er framme ved storbrannen, og skrur på begge når begge er innenfor 2 m. Da fjernes målet, og roboten fortsetter dekningsruta.
+- wallfollower_switch (SetBool), en per robot: robot_controller er server. True starter kjøringen og false stopper roboten. coordinator stopper en robot som er nærmere storbrannen enn 1 m, og skrur på begge når begge er innenfor 1.5 m (scoring krever 2 m). Da fjernes målet, og roboten fortsetter dekningsruta.
 
 
 ## 4. Meldingstyper
@@ -93,3 +95,4 @@ Hvis du endrer et topic, en service eller en meldingstype, oppdater denne fila i
 - 0.2 (2 november): skrevet om etter nodene vi faktisk har
 - 0.3 (5 november): robot_controller følger coverage_path og leser /inflated_map, state kan være FOLLOW_PATH, nye parametre i robot_controller
 - 0.4 (11 november): nytt topic goal for hver robot, coordinator sender storbrannen dit og bruker wallfollower_switch, state kan være AT_GOAL, ny parameter goal_tolerance
+- 0.5 (12 november): marker_reporter leser marker_map_pose og marker_id i stedet for aruco_markers, nytt topic marker_pause for hver robot, coordinator stopper roboten 1 m fra storbrannen og fortsetter når begge er innenfor 1.5 m
