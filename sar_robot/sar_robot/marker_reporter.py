@@ -9,6 +9,8 @@ from sar_robot_interface.msg import KnownMarkers, MarkerFound
 from scoring_interfaces.srv import SetMarkerPosition
 from std_msgs.msg import Bool, Int64
 
+VALID_ID = range(5)   #Fikk en feil med marker 88 i world 2 så måtte legge inn en sjekk på gyldige markør-ID-er. Bare 0-4 er gyldige.
+
 
 class MarkerReporter(Node):
     """Én per robot: rapporterer nye markører til scoring, fra marker_pose sine topics."""
@@ -50,6 +52,8 @@ class MarkerReporter(Node):
     def clbk_id(self, msg):
         """Rapporterer markøren hvis den har stått stille i kartet i 1 sekund."""
         marker_id = int(msg.data)
+        if marker_id not in VALID_ID:
+            return
         p = self.last_pose
         if p is None:
             return
