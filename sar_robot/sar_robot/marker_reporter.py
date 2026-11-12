@@ -5,9 +5,9 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import Pose
-from std_msgs.msg import Int64
 from sar_robot_interface.msg import KnownMarkers, MarkerFound
 from scoring_interfaces.srv import SetMarkerPosition
+from std_msgs.msg import Bool, Int64
 
 
 class MarkerReporter(Node):
@@ -35,6 +35,7 @@ class MarkerReporter(Node):
         self.create_subscription(KnownMarkers, '/known_markers', self.clbk_known, 10)
         self.found_pub = self.create_publisher(MarkerFound, '/markers_found', 10)
         self.client = self.create_client(SetMarkerPosition, '/set_marker_position')
+        self.pause_pub = self.create_publisher(Bool, 'marker_pause', 10)
 
         self.get_logger().info(f'marker_reporter startet for {self.robot_id}')
 
@@ -58,6 +59,8 @@ class MarkerReporter(Node):
             self.start_id = marker_id
             self.start_pos = p
             self.count = 0
+            if marker_id not in self.known and marker_id not in self.pending: 
+                self.pause_pub.publish(Bool(data=True)) 
             return
 
         self.count += 1
