@@ -8,6 +8,7 @@ from rclpy.time import Time
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Path
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
 from sar_robot_interface.msg import RobotState
 from tf2_ros import TransformException
@@ -67,6 +68,8 @@ class RobotController(Node):
         self.create_subscription(PoseStamped, 'goal', self.clbk_goal, 10)   # /tb3_X/goal
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.create_service(SetBool, 'wallfollower_switch', self.clbk_switch)
+        self.create_subscription(Bool, 'marker_pause', self.clbk_pause, 10)   # /tb3_X/marker_pause
+        self.pause_until = 0.0   # står stille til dette tidspunktet mens marker_reporter måler
         # '/robot_states' med / foran, så begge robotene publiserer på samme globale topic
         self.pub_state = self.create_publisher(RobotState, '/robot_states', 10)
 
@@ -92,6 +95,11 @@ class RobotController(Node):
 
         response.success = True
         return response
+
+    def clbk_pause(self, msg):
+        """marker_reporter ber oss stå stille mens den måler en markør (maks 3 s)"""
+        naa = self.get_clock().now().nanoseconds / 1e9
+        self.pause_until = naa + 3.0 if msg.data else 0.0
 
     def clbk_lidar(self, msg):
         self.follower.set_scan(msg.ranges, msg.range_min, msg.range_max)
@@ -178,6 +186,9 @@ class RobotController(Node):
             return
 
         naa = self.get_clock().now().nanoseconds / 1e9
+        if naa < self.pause_until:   # marker_reporter måler en markør
+            self.pub.publish(Twist())
+            return
         forrige = self.mode or self.follower.state.name
         if self.goal is not None and pose is not None and \
                 math.hypot(pose[0] - self.goal[0], pose[1] - self.goal[1]) < self.goal_tolerance:

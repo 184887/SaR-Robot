@@ -65,13 +65,13 @@ class Coordinator(Node):
             return
 
         # Framme? Stopp og vent på den andre.
-        if msg.robot_id not in self.waiting and self.dist_to_fire(msg.robot_id) < 1.5:
+        if msg.robot_id not in self.waiting and self.dist_to_fire(msg.robot_id) < 1.0:
             self.get_logger().info(f'{msg.robot_id} venter ved storbrannen')
             self.waiting.add(msg.robot_id)
             self.set_active(msg.robot_id, False)
 
         # Begge innenfor 2 m gir +300 hos scoring. Da kan de kjøre videre.
-        if all(r in self.positions and self.dist_to_fire(r) < 2.0 for r in ROBOTS):
+        if all(r in self.positions and self.dist_to_fire(r) < 1.5 for r in ROBOTS):
             self.get_logger().info('Begge robotene er ved storbrannen, fortsetter søket')
             self.fire_done = True
             # alle, ikke bare de som venter: på igjen fjerner målet, ellers blir en
