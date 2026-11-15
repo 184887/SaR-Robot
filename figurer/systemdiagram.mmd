@@ -1,0 +1,32 @@
+flowchart LR
+    subgraph Kurs["Fra kurset"]
+        map_server[map_server]
+        aruco[aruco_node]
+        scoring[scoring]
+    end
+
+    subgraph Global["Globale noder"]
+        map_node[map_node]
+        coverage_node[coverage_node]
+        coordinator[coordinator]
+    end
+
+    subgraph Robot["Per robot (tb3_0 / tb3_1)"]
+        robot_controller["robot_controller<br/>(path_follower + wall_follower + A*)"]
+        marker_reporter[marker_reporter]
+        tb3[(TurtleBot3)]
+    end
+
+    map_server -- "/map" --> map_node
+    map_node -- "/inflated_map" --> coverage_node
+    map_node -- "/inflated_map" --> robot_controller
+    coverage_node -- "coverage_path" --> robot_controller
+    coordinator -- "goal (storbrann)" --> robot_controller
+    coordinator -. "wallfollower_switch (srv)" .-> robot_controller
+    robot_controller -- "/robot_states" --> coordinator
+    tb3 -- "scan" --> robot_controller
+    robot_controller -- "cmd_vel" --> tb3
+    aruco -- "aruco_markers" --> marker_reporter
+    marker_reporter -- "/markers_found" --> coordinator
+    coordinator -- "/known_markers" --> marker_reporter
+    marker_reporter -. "/set_marker_position (srv)" .-> scoring
