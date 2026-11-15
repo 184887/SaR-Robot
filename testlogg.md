@@ -136,11 +136,56 @@ Lag en ny overskrift for hver kjøring og fyll inn de samme punktene.
   - Alle markørene ble funnet og godkjent på første forsøk, så vi fikk tidspoeng også.
   - Første gang alle markørene ble funnet i w1.
 
-## Mulig endringer som kan gjøres basert på kjøringene (oppdateres og fjernes etter behov):
-- marker_recognition fra kurset husker siste markør for alltid. Når roboten har kjørt videre, legger den den gamle målingen på der roboten er nå. Markøren flytter seg altså med roboten, og blir sendt når roboten står stille i 1 sekund. Derfor ble markør 4 avvist i kjøring 2.
-- Forslag: les også aruco_markers, og rapporter bare hvis det kom en melding der for under ca 0.3 s siden. Den gamle versjonen (3be6b56) leste 	  aruco_markers direkte.
-- Sett z til 0 før vi sender. Scoring måler i 3D og markørene har z = 0. Markør 4 ble avvist i kjøring 3 bare på grunn av z.
-- Nord i kartet (markør 1 og 2) ble ikke dekket. Sjekk dekningsruta til tb3_1 og hva som skjer med ruta etter storbrannen.
-- coordinator venter til begge er innenfor 1.5 m, men scoring gir bonus ved 2 m. Det kostet 19 s i kjøring 3 og 36 s i kjøring 4. 1.5 m er valgt fordi rapportert posisjon kan være opptil 0.5 m feil.
+- Kjøring 10
+
+- Dato: 15.11
+- Commit: 3f4dee2
+- Verden: w2
+- Poeng: 1051
+- Markører funnet: 2, 1 og 3 (tb3_1), 0 og 4 (tb3_0)
+- Storbrann: ja
+- Kommentar:
+  - Alle markørene ble funnet, så vi fikk tidspoeng også.
+  - Markør 3 ble avvist fire ganger før den ble godkjent. tb3_1 så den fra ca 6 m unna, og etterpå ble den gamle målingen sendt mens roboten snudde seg. Samme feil som i kjøring 2.
+  - tb3_0 ventet ca 90 s ved storbrannen, fordi tb3_1 var langt vest i kartet da markør 4 ble funnet.
+
+- Kjøring 11
+
+- Dato: 15.11
+- Commit: 3f4dee2 
+- Verden: w3
+- Poeng: 1042
+- Markører funnet: 3, 4 og 2 (tb3_1), 1 og 0 (tb3_0)
+- Storbrann: ja
+- Kommentar:
+  - Alle markørene ble funnet og godkjent på første forsøk, så vi fikk tidspoeng også.
+  - Bonusen kom allerede etter ca 2 minutter. Det som tok tid var markør 0, som ble funnet sist, nesten 2.5 minutter etter markør 2.
+
+- Kjøring 12
+
+- Dato: 15.11
+- Commit: 3f4dee2 
+- Verden: w4
+- Poeng: 700
+- Markører funnet: 1 og 4 (tb3_1), 2 og 3 (tb3_0)
+- Storbrann: ja
+- Kommentar:
+  - Alle markørene som ble funnet, ble godkjent på første forsøk.
+  - Markør 0 ble ikke funnet, samme som i kjøring 7. tb3_1 var 1.4 m fra den etter ca 2.5 min, men kameraet så den aldri.
+  - Markør 2 og 4 ser ut til å stå rygg mot rygg. Markør 2 ble bare sett fra vest og markør 4 bare fra øst, så de kom 200 s fra hverandre. Det forklarer nok det samme i kjøring 7.
+  - RViz- og Gazebo-vinduet var åpne de første ca 5 minuttene, så real-time factor var på rundt 0.50-0.60.
+
+- Kjøring 13
+
+- Dato: 15.11
+- Commit: 3f4dee2 
+- Verden: w5
+- Poeng: 1083
+- Markører funnet: 0, 1, 4 og 3 (tb3_1), 2 (tb3_0)
+- Storbrann: ja
+- Kommentar:
+  - Alle markørene ble funnet og godkjent på første forsøk, så vi fikk tidspoeng også.
+  - Nesten likt kjøring 8: samme robot fant de samme markørene i samme rekkefølge.
+  - tb3_1 ventet ca 80 s ved storbrannen før tb3_0 kom.
 
 
