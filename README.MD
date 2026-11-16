@@ -122,6 +122,6 @@ Dette i vår egen kode bygger på kursmateriell:
 | Rolle | Ansvar | Hvem |
 |---|---|---|
 | A | Bevegelse: robot_controller, path_follower, wall_follower | Magnus Fondenes |
-| B | Kart og planlegging: map_grid, map_node, planner, coverage | [navn] |
-| C | Markører og koordinering: marker_reporter, coordinator | [navn] |
-| D | Integrasjon og test: meldingstyper, launch, testlogg | [navn] |
+| B | Kart og planlegging: map_grid, map_node, planner, coverage | Andreas Rindli |
+| C | Markører og koordinering: marker_reporter, coordinator | Matias Wolden |
+| D | Integrasjon og test: meldingstyper, launch, testlogg | Emil Loynab |
